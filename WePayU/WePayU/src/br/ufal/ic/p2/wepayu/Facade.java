@@ -12,18 +12,37 @@ public class Facade {
 
     private List<Empregado> listaEmpregados = new ArrayList<>();
 
-    public String getAtributoEmpregado(String nomeBusacado, String atributo) throws Exception {
+    public String criarEmpregado(String nome, String endereco, String tipo, double salario) throws Exception {
+        String idGerado = java.util.UUID.randomUUID().toString();
+        Empregado novoFuncionario = new Empregado(idGerado, nome, endereco, tipo, salario);
+        listaEmpregados.add(novoFuncionario);
+        return idGerado;
+    }
+
+    public String getAtributoEmpregado(String idBuscado, String atributo) throws Exception {
 
 
         for (int i = 0; i < listaEmpregados.size(); i++) {
 
             Empregado funcionarioAtual = listaEmpregados.get(i);
 
-            if (funcionarioAtual.getNome().equals(nomeBusacado)) {
-                return funcionarioAtual.getNome();
+            if (funcionarioAtual.getId().equals(idBuscado)) {
 
+                if(atributo.equals("nome")){
+                    return funcionarioAtual.getNome();
+               }
+               else if(atributo.equals("endereco")){
+                   return funcionarioAtual.getEndereco();
+                }
+               else if(atributo.equals("tipo")){
+                   return funcionarioAtual.getTipo();
+
+                }
+               else if (atributo.equals("salario")){
+                    return String.format("%.2f", funcionarioAtual.getSalario()).replace(".", ",");
+                }
             }
-
+            
         }
         throw new EmpregadoNaoExisteException();
 
