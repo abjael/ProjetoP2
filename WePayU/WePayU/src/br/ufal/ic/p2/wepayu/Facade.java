@@ -10,5 +10,26 @@ import java.util.Map;
 
 public class Facade {
 
+    private List<Empregado> listaEmpregados = new ArrayList<>();
 
+    public String getAtributoEmpregado(String nomeBusacado, String atributo) throws Exception {
+
+
+        for (int i = 0; i < listaEmpregados.size(); i++) {
+
+            Empregado funcionarioAtual = listaEmpregados.get(i);
+
+            if (funcionarioAtual.getNome().equals(nomeBusacado)) {
+                return funcionarioAtual.getNome();
+
+            }
+
+        }
+        throw new EmpregadoNaoExisteException();
+
+    }
+
+    public void zerarSistema(){
+        listaEmpregados.clear();
+    }
 }
