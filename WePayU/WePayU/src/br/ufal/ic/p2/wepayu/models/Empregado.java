@@ -7,14 +7,16 @@ public class Empregado {
     private String nome;
     private String endereco;
     private String tipo;
-    private double salario;
+    private Double salario;
+    private String sindicalizado;
 
-    public Empregado(String id, String nome, String endereco, String tipo, double salario) throws EmpregadoNaoExisteException {
+    public Empregado(String id, String nome, String endereco, String tipo, double salario, String sindicalizado) {
         this.id =  id;
         this.nome = nome;
         this.endereco = endereco;
         this.tipo = tipo;
         this.salario = salario;
+        this.sindicalizado = sindicalizado;
     }
 
     public String getId() {
@@ -36,5 +38,9 @@ public class Empregado {
     public double getSalario() {
         return salario;
     }
+
+    public String getSindicalizado() {return sindicalizado;}
+
+
 
 }
