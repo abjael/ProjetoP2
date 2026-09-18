@@ -8,7 +8,7 @@ import java.util.List;
 
 public class Facade {
 
-    private List<Empregado> listaEmpregados = new ArrayList<>();
+    private static  List<Empregado> listaEmpregados = new ArrayList<>();
 
     public String criarEmpregado(String nome, String endereco, String tipo, String salario) throws Exception {
         if (nome == null || nome.isEmpty()) {
@@ -123,11 +123,30 @@ public class Facade {
         }
         throw new EmpregadoNaoExisteException();
     }
+    public String getEmpregadoPorNome(String nome, int indice) throws Exception {
+        if (nome == null || nome.isEmpty()) {
+            throw new Exception("Nome nao pode ser nulo.");
+        }
+
+        int contador = 0;
+        for (int i = 0; i < listaEmpregados.size(); i++) {
+            Empregado funcionarioAtual = listaEmpregados.get(i);
+
+            if (funcionarioAtual.getNome().equals(nome)) {
+                contador++;
+                if (contador == indice) {
+                    return funcionarioAtual.getId();
+                }
+            }
+        }
+
+        throw new Exception("Nao ha empregado com esse nome.");
+    }
 
     public void zerarSistema() {
         listaEmpregados.clear();
     }
-    public void encerrarSistema() {
 
+    public void encerrarSistema() {
     }
 }
