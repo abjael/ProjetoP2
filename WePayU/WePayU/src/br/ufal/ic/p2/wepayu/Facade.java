@@ -12,9 +12,10 @@ public class Facade {
 
     private List<Empregado> listaEmpregados = new ArrayList<>();
 
-    public String criarEmpregado(String nome, String endereco, String tipo, double salario) throws Exception {
+    public String criarEmpregado(String nome, String endereco, String tipo, String salario) throws Exception {
         String idGerado = java.util.UUID.randomUUID().toString();
-        Empregado novoFuncionario = new Empregado(idGerado, nome, endereco, tipo, salario);
+        double salarioNumero = Double.parseDouble(salario.replace(",", "."));
+        Empregado novoFuncionario = new Empregado(idGerado, nome, endereco, tipo, salarioNumero,"false");
         listaEmpregados.add(novoFuncionario);
         return idGerado;
     }
@@ -40,9 +41,15 @@ public class Facade {
                 }
                else if (atributo.equals("salario")){
                     return String.format("%.2f", funcionarioAtual.getSalario()).replace(".", ",");
+               }
+
+               else if (atributo.equals("sindicalizado")){
+                    return funcionarioAtual.getSindicalizado();
+
+
                 }
             }
-            
+
         }
         throw new EmpregadoNaoExisteException();
 
