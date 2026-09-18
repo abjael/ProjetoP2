@@ -8,6 +8,7 @@ public class Empregado {
     private String endereco;
     private String tipo;
     private Double salario;
+    private Double comissao;
     private String sindicalizado;
 
     public Empregado(String id, String nome, String endereco, String tipo, double salario, String sindicalizado) {
@@ -15,6 +16,17 @@ public class Empregado {
         this.nome = nome;
         this.endereco = endereco;
         this.tipo = tipo;
+        this.comissao = 0.0;
+        this.salario = salario;
+        this.sindicalizado = sindicalizado;
+
+    }
+    public Empregado(String id, String nome, String endereco, String tipo, double salario, double comissao,  String sindicalizado) {
+        this.id =  id;
+        this.nome = nome;
+        this.endereco = endereco;
+        this.tipo = tipo;
+        this.comissao = comissao;
         this.salario = salario;
         this.sindicalizado = sindicalizado;
     }
@@ -40,6 +52,8 @@ public class Empregado {
     }
 
     public String getSindicalizado() {return sindicalizado;}
+
+    public Double getComissao() {return comissao;}
 
 
 
