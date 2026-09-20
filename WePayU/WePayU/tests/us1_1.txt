@@ -37,3 +37,6 @@ expect "Rua dos Bufoes, 333 - Campina Grande" getAtributoEmpregado emp=${id5} at
 expect comissionado getAtributoEmpregado emp=${id5} atributo=tipo
 expect 2300,45 getAtributoEmpregado emp=${id5} atributo=salario
 expect 0,05 getAtributoEmpregado emp=${id5} atributo=comissao
+
+encerrarSistema
+quit
