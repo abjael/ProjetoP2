@@ -1,20 +1,59 @@
 package br.ufal.ic.p2.wepayu.models;
 
-public class Horista extends Empregado {
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
-    private double horasTrabalhadas = 0.0;
+public class Horista extends Empregado {
+    private List<CartaoPonto> cartoes;
 
     public Horista(String id, String nome, String endereco, String tipo, double salario, String sindicalizado) {
         super(id, nome, endereco, tipo, salario, sindicalizado);
+        this.cartoes = new ArrayList<>();
     }
 
-    @Override
-    public void adicionarHoras(double horas) {
-        this.horasTrabalhadas += horas;
+    public void lancarCartao(String data, double horas) {
+        this.cartoes.add(new CartaoPonto(data, horas));
     }
 
-    @Override
-    public String getHorasTrabalhadas() {
-        return String.format("%.1f", horasTrabalhadas).replace(".", ",");
+    public double getHorasNormais(String dataInicial, String dataFinal) {
+        LocalDate inicio = parseData(dataInicial);
+        LocalDate fim = parseData(dataFinal);
+        double total = 0.0;
+
+        for (CartaoPonto cartao : cartoes) {
+            LocalDate dataCartao = parseData(cartao.getData());
+            if (!dataCartao.isBefore(inicio) && dataCartao.isBefore(fim)) {
+                double h = cartao.getHoras();
+                if (h <= 8.0) {
+                    total += h;
+                } else {
+                    total += 8.0;
+                }
+            }
+        }
+        return total;
+    }
+
+    public double getHorasExtras(String dataInicial, String dataFinal) {
+        LocalDate inicio = parseData(dataInicial);
+        LocalDate fim = parseData(dataFinal);
+        double total = 0.0;
+
+        for (CartaoPonto cartao : cartoes) {
+            LocalDate dataCartao = parseData(cartao.getData());
+            if (!dataCartao.isBefore(inicio) && dataCartao.isBefore(fim)) {
+                double h = cartao.getHoras();
+                if (h > 8.0) {
+                    total += (h - 8.0);
+                }
+            }
+        }
+        return total;
+    }
+
+    private LocalDate parseData(String data) {
+        String[] partes = data.split("/");
+        return LocalDate.of(Integer.parseInt(partes[2]), Integer.parseInt(partes[1]), Integer.parseInt(partes[0]));
     }
 }

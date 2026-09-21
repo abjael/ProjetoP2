@@ -5,6 +5,7 @@ import br.ufal.ic.p2.wepayu.models.Empregado;
 import br.ufal.ic.p2.wepayu.models.Horista;
 import br.ufal.ic.p2.wepayu.models.Assalariado;
 import br.ufal.ic.p2.wepayu.models.Comissionado;
+import br.ufal.ic.p2.wepayu.models.Venda;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -183,15 +184,15 @@ public class Facade {
         throw new EmpregadoNaoExisteException();
     }
 
-    public void lancaCartao(String idBuscado, String data, String horas) throws Exception {
-        if (idBuscado == null || idBuscado.isEmpty()) {
+    public void lancaCartao(String idEmp, String data, String horas) throws Exception {
+        if (idEmp == null || idEmp.isEmpty()) {
             throw new IdentificacaoEmpregadoNaoPodeSerNulaException();
         }
 
         Empregado empregadoEncontrado = null;
         for (int i = 0; i < listaEmpregados.size(); i++) {
             Empregado funcionarioAtual = listaEmpregados.get(i);
-            if (funcionarioAtual.getId().equals(idBuscado)) {
+            if (funcionarioAtual.getId().equals(idEmp)) {
                 empregadoEncontrado = funcionarioAtual;
                 break;
             }
@@ -202,7 +203,7 @@ public class Facade {
         }
 
         if (!empregadoEncontrado.getTipo().equals("horista")) {
-            throw new EmpregadoNaoEhHoristaException();
+            throw new RuntimeException("Empregado nao eh horista.");
         }
 
         validarData(data);
@@ -222,7 +223,8 @@ public class Facade {
             throw new HorasDevemSerPositivasException();
         }
 
-        empregadoEncontrado.adicionarHoras(horasNumero);
+        Horista horista = (Horista) empregadoEncontrado;
+        horista.lancarCartao(data, horasNumero);
     }
 
     private void validarData(String data) throws Exception {
@@ -238,10 +240,8 @@ public class Facade {
             int mes = Integer.parseInt(partes[1]);
             int ano = Integer.parseInt(partes[2]);
 
-            if (dia < 1 || dia > 31 || mes < 1 || mes > 12) {
-                throw new DataInvalidaException();
-            }
-        } catch (NumberFormatException e) {
+            java.time.LocalDate.of(ano, mes, dia);
+        } catch (Exception e) {
             throw new DataInvalidaException();
         }
     }
@@ -259,10 +259,8 @@ public class Facade {
             int mes = Integer.parseInt(partes[1]);
             int ano = Integer.parseInt(partes[2]);
 
-            if (dia < 1 || dia > 31 || mes < 1 || mes > 12) {
-                throw new DataInicialInvalidaException();
-            }
-        } catch (NumberFormatException e) {
+            java.time.LocalDate.of(ano, mes, dia);
+        } catch (Exception e) {
             throw new DataInicialInvalidaException();
         }
     }
@@ -280,10 +278,8 @@ public class Facade {
             int mes = Integer.parseInt(partes[1]);
             int ano = Integer.parseInt(partes[2]);
 
-            if (dia < 1 || dia > 31 || mes < 1 || mes > 12) {
-                throw new DataFinalInvalidaException();
-            }
-        } catch (NumberFormatException e) {
+            java.time.LocalDate.of(ano, mes, dia);
+        } catch (Exception e) {
             throw new DataFinalInvalidaException();
         }
     }
@@ -301,7 +297,28 @@ public class Facade {
         return data1.isAfter(data2);
     }
 
-    public String getHorasNormaisTrabalhadas(String idEmpregado, String dataInicial, String dataFinal) throws Exception {
+    public String getHorasNormaisTrabalhadas(String idEmp, String dataInicial, String dataFinal) throws Exception {
+        if (idEmp == null || idEmp.isEmpty()) {
+            throw new IdentificacaoEmpregadoNaoPodeSerNulaException();
+        }
+
+        Empregado empregadoEncontrado = null;
+        for (int i = 0; i < listaEmpregados.size(); i++) {
+            Empregado funcionarioAtual = listaEmpregados.get(i);
+            if (funcionarioAtual.getId().equals(idEmp)) {
+                empregadoEncontrado = funcionarioAtual;
+                break;
+            }
+        }
+
+        if (empregadoEncontrado == null) {
+            throw new EmpregadoNaoExisteException();
+        }
+
+        if (!empregadoEncontrado.getTipo().equals("horista")) {
+            throw new RuntimeException("Empregado nao eh horista.");
+        }
+
         validarDataInicial(dataInicial);
         validarDataFinal(dataFinal);
 
@@ -309,10 +326,37 @@ public class Facade {
             throw new DataInicialNaoPodeSerPosteriorException();
         }
 
-        return "0,0";
+        Horista horista = (Horista) empregadoEncontrado;
+        double horas = horista.getHorasNormais(dataInicial, dataFinal);
+
+        if (horas == (int) horas) {
+            return String.valueOf((int) horas);
+        }
+        return String.format("%.1f", horas).replace(".", ",");
     }
 
-    public String getHorasExtrasTrabalhadas(String idEmpregado, String dataInicial, String dataFinal) throws Exception {
+    public String getHorasExtrasTrabalhadas(String idEmp, String dataInicial, String dataFinal) throws Exception {
+        if (idEmp == null || idEmp.isEmpty()) {
+            throw new IdentificacaoEmpregadoNaoPodeSerNulaException();
+        }
+
+        Empregado empregadoEncontrado = null;
+        for (int i = 0; i < listaEmpregados.size(); i++) {
+            Empregado funcionarioAtual = listaEmpregados.get(i);
+            if (funcionarioAtual.getId().equals(idEmp)) {
+                empregadoEncontrado = funcionarioAtual;
+                break;
+            }
+        }
+
+        if (empregadoEncontrado == null) {
+            throw new EmpregadoNaoExisteException();
+        }
+
+        if (!empregadoEncontrado.getTipo().equals("horista")) {
+            throw new RuntimeException("Empregado nao eh horista.");
+        }
+
         validarDataInicial(dataInicial);
         validarDataFinal(dataFinal);
 
@@ -320,7 +364,107 @@ public class Facade {
             throw new DataInicialNaoPodeSerPosteriorException();
         }
 
-        return "0,0";
+        Horista horista = (Horista) empregadoEncontrado;
+        double horas = horista.getHorasExtras(dataInicial, dataFinal);
+
+        if (horas == (int) horas) {
+            return String.valueOf((int) horas);
+        }
+        return String.format("%.1f", horas).replace(".", ",");
+    }
+    public void lancaVenda(String idBuscado, String data, String valor) throws Exception {
+        if (idBuscado == null || idBuscado.isEmpty()) {
+            throw new IdentificacaoEmpregadoNaoPodeSerNulaException();
+        }
+
+        Empregado empregadoEncontrado = null;
+        for (int i = 0; i < listaEmpregados.size(); i++) {
+            Empregado funcionarioAtual = listaEmpregados.get(i);
+            if (funcionarioAtual.getId().equals(idBuscado)) {
+                empregadoEncontrado = funcionarioAtual;
+                break;
+            }
+        }
+
+        if (empregadoEncontrado == null) {
+            throw new EmpregadoNaoExisteException();
+        }
+
+        if (!empregadoEncontrado.getTipo().equals("comissionado")) {
+            throw new RuntimeException("Empregado nao eh comissionado.");
+        }
+
+        validarData(data);
+
+        if (valor == null || valor.isEmpty()) {
+            throw new ValorNaoPodeSerNuloException();
+        }
+
+        double valorNumero;
+        try {
+            valorNumero = Double.parseDouble(valor.replace(",", "."));
+        } catch (NumberFormatException e) {
+            throw new ValorDeveSerNumericoException();
+        }
+
+        if (valorNumero <= 0) {
+            throw new ValorDeveSerPositivoException();
+        }
+
+        Comissionado comissionado = (Comissionado) empregadoEncontrado;
+        comissionado.adicionarVenda(data, valorNumero);
+    }
+    private java.time.LocalDate parseData(String data) {
+        String[] partes = data.split("/");
+        int dia = Integer.parseInt(partes[0]);
+        int mes = Integer.parseInt(partes[1]);
+        int ano = Integer.parseInt(partes[2]);
+        return java.time.LocalDate.of(ano, mes, dia);
+    }
+
+    public String getVendasRealizadas(String idEmpregado, String dataInicial, String dataFinal) throws Exception {
+        if (idEmpregado == null || idEmpregado.isEmpty()) {
+            throw new IdentificacaoEmpregadoNaoPodeSerNulaException();
+        }
+
+        Empregado empregadoEncontrado = null;
+        for (int i = 0; i < listaEmpregados.size(); i++) {
+            Empregado funcionarioAtual = listaEmpregados.get(i);
+            if (funcionarioAtual.getId().equals(idEmpregado)) {
+                empregadoEncontrado = funcionarioAtual;
+                break;
+            }
+        }
+
+        if (empregadoEncontrado == null) {
+            throw new EmpregadoNaoExisteException();
+        }
+
+        if (!empregadoEncontrado.getTipo().equals("comissionado")) {
+            throw new RuntimeException("Empregado nao eh comissionado.");
+        }
+
+        validarDataInicial(dataInicial);
+        validarDataFinal(dataFinal);
+
+        if (isDataPosterior(dataInicial, dataFinal)) {
+            throw new DataInicialNaoPodeSerPosteriorException();
+        }
+
+        Comissionado comissionado = (Comissionado) empregadoEncontrado;
+        double totalVendas = 0.0;
+
+        java.time.LocalDate inicio = parseData(dataInicial);
+        java.time.LocalDate fim = parseData(dataFinal);
+
+        for (Venda venda : comissionado.getVendas()) {
+            java.time.LocalDate dataVenda = parseData(venda.getData());
+            if (!dataVenda.isBefore(inicio) && dataVenda.isBefore(fim)) {
+                totalVendas += venda.getValor();
+            }
+        }
+
+        return String.format("%.2f", totalVendas).replace(".", ",");
     }
 
     public void zerarSistema() {
