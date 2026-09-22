@@ -6,6 +6,7 @@ import br.ufal.ic.p2.wepayu.models.Horista;
 import br.ufal.ic.p2.wepayu.models.Assalariado;
 import br.ufal.ic.p2.wepayu.models.Comissionado;
 import br.ufal.ic.p2.wepayu.models.Venda;
+import br.ufal.ic.p2.wepayu.models.TaxaServico;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -354,7 +355,7 @@ public class Facade {
         }
 
         if (!empregadoEncontrado.getTipo().equals("horista")) {
-            throw new RuntimeException("Empregado nao eh horista.");
+            throw new EmpregadoNaoEhHoristaException();
         }
 
         validarDataInicial(dataInicial);
@@ -391,7 +392,7 @@ public class Facade {
         }
 
         if (!empregadoEncontrado.getTipo().equals("comissionado")) {
-            throw new RuntimeException("Empregado nao eh comissionado.");
+            throw new EmpregadoNaoEhComissionado();
         }
 
         validarData(data);
@@ -441,7 +442,7 @@ public class Facade {
         }
 
         if (!empregadoEncontrado.getTipo().equals("comissionado")) {
-            throw new RuntimeException("Empregado nao eh comissionado.");
+            throw new EmpregadoNaoEhComissionado();
         }
 
         validarDataInicial(dataInicial);
@@ -466,40 +467,148 @@ public class Facade {
 
         return String.format("%.2f", totalVendas).replace(".", ",");
     }
-    public void alteraEmpregado(String idEmpregado, String atributo, String valor, String idSindicato, String taxaSindical) throws Exception {
-        if (idEmpregado == null || idEmpregado.isEmpty()) {
-            throw new IdentificacaoEmpregadoNaoPodeSerNulaException();
-        }
-
-    }
     public void alteraEmpregado(String idEmpregado, String atributo, String valor) throws Exception {
         if (idEmpregado == null || idEmpregado.isEmpty()) {
             throw new IdentificacaoEmpregadoNaoPodeSerNulaException();
         }
 
-    }
-    public String getTaxasServico(String idEmpregado, String dataInicial, String dataFinal)throws Exception{
-        if (idEmpregado == null || idEmpregado.isEmpty()) {
-            throw new IdentificacaoEmpregadoNaoPodeSerNulaException();
-        }
         Empregado empregadoEncontrado = null;
-        for(int i = 0; i < listaEmpregados.size(); i++) {
-            Empregado funcionarioAtual =  listaEmpregados.get(i);
+        for (int i = 0; i < listaEmpregados.size(); i++) {
+            Empregado funcionarioAtual = listaEmpregados.get(i);
             if (funcionarioAtual.getId().equals(idEmpregado)) {
                 empregadoEncontrado = funcionarioAtual;
                 break;
             }
         }
+
         if (empregadoEncontrado == null) {
             throw new EmpregadoNaoExisteException();
         }
+
+        if (atributo.equals("sindicalizado")) {
+            empregadoEncontrado.setSindicalizado(valor);
+        }
+    }
+
+    public void alteraEmpregado(String idEmpregado, String atributo, String valor, String idSindicato, String taxaSindical) throws Exception {
+        if (idEmpregado == null || idEmpregado.isEmpty()) {
+            throw new IdentificacaoEmpregadoNaoPodeSerNulaException();
+        }
+
+        Empregado empregadoEncontrado = null;
+        for (int i = 0; i < listaEmpregados.size(); i++) {
+            Empregado funcionarioAtual = listaEmpregados.get(i);
+            if (funcionarioAtual.getId().equals(idEmpregado)) {
+                empregadoEncontrado = funcionarioAtual;
+                break;
+            }
+        }
+
+        if (empregadoEncontrado == null) {
+            throw new EmpregadoNaoExisteException();
+        }
+
+        for (int i = 0; i < listaEmpregados.size(); i++) {
+            Empregado f = listaEmpregados.get(i);
+            if (f.getIdSindicato() != null && f.getIdSindicato().equals(idSindicato) && !f.getId().equals(idEmpregado)) {
+                throw new HaOutroEmpregadoComEstaIdentificacaoDeSindicato();
+            }
+        }
+
+        if (atributo.equals("sindicalizado")) {
+            empregadoEncontrado.setSindicalizado(valor);
+            empregadoEncontrado.setIdSindicato(idSindicato);
+
+            if (taxaSindical != null && !taxaSindical.isEmpty()) {
+                double taxaNum = Double.parseDouble(taxaSindical.replace(",", "."));
+                empregadoEncontrado.setTaxaSindical(taxaNum);
+            }
+        }
+    }
+    public String getTaxasServico(String idEmpregado, String dataInicial, String dataFinal) throws Exception {
+        if (idEmpregado == null || idEmpregado.isEmpty()) {
+            throw new IdentificacaoEmpregadoNaoPodeSerNulaException();
+        }
+
+        Empregado empregadoEncontrado = null;
+        for (int i = 0; i < listaEmpregados.size(); i++) {
+            Empregado funcionarioAtual = listaEmpregados.get(i);
+            if (funcionarioAtual.getId().equals(idEmpregado)) {
+                empregadoEncontrado = funcionarioAtual;
+                break;
+            }
+        }
+
+        if (empregadoEncontrado == null) {
+            throw new EmpregadoNaoExisteException();
+        }
+
+        if (!empregadoEncontrado.getSindicalizado().equals("true")) {
+            throw new EmpregadoNaoEhSindicalizado();
+        }
+
         validarDataInicial(dataInicial);
         validarDataFinal(dataFinal);
+
         if (isDataPosterior(dataInicial, dataFinal)) {
             throw new DataInicialNaoPodeSerPosteriorException();
         }
-        return "0,00";
+
+        double totalTaxas = 0.0;
+        java.time.LocalDate inicio = parseData(dataInicial);
+        java.time.LocalDate fim = parseData(dataFinal);
+
+        for (TaxaServico taxa : empregadoEncontrado.getTaxasServico()) {
+            java.time.LocalDate dataTaxa = parseData(taxa.getData());
+
+
+            if (!dataTaxa.isBefore(inicio) && dataTaxa.isBefore(fim)) {
+                totalTaxas += taxa.getValor();
+            }
+        }
+
+        return String.format("%.2f", totalTaxas).replace(".", ",");
+
     }
+    public void lancaTaxaServico(String idSindicato, String data, String valor) throws Exception {
+        if (idSindicato == null || idSindicato.isEmpty()) {
+            throw new IdentificacaoDoMembroNaoPodeSerNula() ;
+        }
+
+        Empregado empregadoEncontrado = null;
+        for (int i = 0; i < listaEmpregados.size(); i++) {
+            Empregado funcionarioAtual = listaEmpregados.get(i);
+
+            if (funcionarioAtual.getIdSindicato().equals(idSindicato)) {
+                empregadoEncontrado = funcionarioAtual;
+                break;
+            }
+        }
+
+        if (empregadoEncontrado == null) {
+            throw new MembroNaoExiste();
+        }
+
+        validarData(data);
+
+        if (valor == null || valor.isEmpty()) {
+            throw new ValorNaoPodeSerNuloException();
+        }
+
+        double valorNumero;
+        try {
+            valorNumero = Double.parseDouble(valor.replace(",", "."));
+        } catch (NumberFormatException e) {
+            throw new ValorDeveSerNumericoException();
+        }
+
+        if (valorNumero <= 0) {
+            throw new ValorDeveSerPositivoException();
+        }
+
+        empregadoEncontrado.adicionarTaxaServico(data, valorNumero);
+    }
+
 
     public void zerarSistema() {
         Facade.listaEmpregados.clear();

@@ -1,5 +1,7 @@
 package br.ufal.ic.p2.wepayu.models;
 import br.ufal.ic.p2.wepayu.Exception.EmpregadoNaoHoristaException;
+import java.util.List;
+import java.util.ArrayList;
 
 public abstract class Empregado {
     private String id;
@@ -8,6 +10,8 @@ public abstract class Empregado {
     private String tipo;
     private double salario;
     private String sindicalizado;
+    private String idSindicato;
+    private double taxaSindical;
 
     public Empregado(String id, String nome, String endereco, String tipo, double salario, String sindicalizado) {
         this.id = id;
@@ -16,23 +20,56 @@ public abstract class Empregado {
         this.tipo = tipo;
         this.salario = salario;
         this.sindicalizado = sindicalizado;
+        this.idSindicato = "";
+        this.taxaSindical = 0.0;
     }
 
-    public String getId() {return id;}
+    public String getId() { return id; }
 
-    public String getNome() {return nome;}
+    public String getNome() { return nome; }
 
-    public String getEndereco() {return endereco;}
+    public String getEndereco() { return endereco; }
 
-    public String getTipo() {return tipo;}
+    public String getTipo() { return tipo; }
 
-    public String getSindicalizado() {return sindicalizado;}
+    public double getSalario() { return salario; }
 
-    public double getSalario() {return salario;}
+    public String getSindicalizado() { return sindicalizado; }
 
-    public double getComissao() {return 0.0;}
+    public void setSindicalizado(String sindicalizado) {
+        this.sindicalizado = sindicalizado;
+    }
 
-    public void adicionarHoras(double horas) throws EmpregadoNaoHoristaException {throw new EmpregadoNaoHoristaException();}
+    public String getIdSindicato() {
+        return idSindicato;
+    }
 
-    public String getHorasTrabalhadas() {return "0,0";}
+    public void setIdSindicato(String idSindicato) {
+        this.idSindicato = idSindicato;
+    }
+
+    public double getTaxaSindical() {
+        return taxaSindical;
+    }
+
+    public void setTaxaSindical(double taxaSindical) {
+        this.taxaSindical = taxaSindical;
+    }
+
+    public double getComissao() { return 0.0; }
+
+    public void adicionarHoras(double horas) throws EmpregadoNaoHoristaException {
+        throw new EmpregadoNaoHoristaException();
+    }
+    private List<TaxaServico> taxasServico = new ArrayList<>();
+
+    public void adicionarTaxaServico(String data, double valor) {
+        taxasServico.add(new TaxaServico(data, valor));
+    }
+
+    public List<TaxaServico> getTaxasServico() {
+        return taxasServico;
+    }
+
+    public String getHorasTrabalhadas() { return "0,0"; }
 }
