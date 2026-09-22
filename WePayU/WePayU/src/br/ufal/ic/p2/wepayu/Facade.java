@@ -203,7 +203,7 @@ public class Facade {
         }
 
         if (!empregadoEncontrado.getTipo().equals("horista")) {
-            throw new RuntimeException("Empregado nao eh horista.");
+            throw new EmpregadoNaoEhHoristaException();
         }
 
         validarData(data);
@@ -316,7 +316,7 @@ public class Facade {
         }
 
         if (!empregadoEncontrado.getTipo().equals("horista")) {
-            throw new RuntimeException("Empregado nao eh horista.");
+            throw new EmpregadoNaoEhHoristaException();
         }
 
         validarDataInicial(dataInicial);
@@ -465,6 +465,40 @@ public class Facade {
         }
 
         return String.format("%.2f", totalVendas).replace(".", ",");
+    }
+    public void alteraEmpregado(String idEmpregado, String atributo, String valor, String idSindicato, String taxaSindical) throws Exception {
+        if (idEmpregado == null || idEmpregado.isEmpty()) {
+            throw new IdentificacaoEmpregadoNaoPodeSerNulaException();
+        }
+
+    }
+    public void alteraEmpregado(String idEmpregado, String atributo, String valor) throws Exception {
+        if (idEmpregado == null || idEmpregado.isEmpty()) {
+            throw new IdentificacaoEmpregadoNaoPodeSerNulaException();
+        }
+
+    }
+    public String getTaxasServico(String idEmpregado, String dataInicial, String dataFinal)throws Exception{
+        if (idEmpregado == null || idEmpregado.isEmpty()) {
+            throw new IdentificacaoEmpregadoNaoPodeSerNulaException();
+        }
+        Empregado empregadoEncontrado = null;
+        for(int i = 0; i < listaEmpregados.size(); i++) {
+            Empregado funcionarioAtual =  listaEmpregados.get(i);
+            if (funcionarioAtual.getId().equals(idEmpregado)) {
+                empregadoEncontrado = funcionarioAtual;
+                break;
+            }
+        }
+        if (empregadoEncontrado == null) {
+            throw new EmpregadoNaoExisteException();
+        }
+        validarDataInicial(dataInicial);
+        validarDataFinal(dataFinal);
+        if (isDataPosterior(dataInicial, dataFinal)) {
+            throw new DataInicialNaoPodeSerPosteriorException();
+        }
+        return "0,00";
     }
 
     public void zerarSistema() {
