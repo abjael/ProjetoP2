@@ -111,43 +111,74 @@ public class Facade {
             throw new IdentificacaoEmpregadoNaoPodeSerNulaException();
         }
 
+        Empregado funcionarioAtual = null;
+        for (int i = 0; i < listaEmpregados.size(); i++) {
+            Empregado f = listaEmpregados.get(i);
+            if (f.getId().equals(idBuscado)) {
+                funcionarioAtual = f;
+                break;
+            }
+        }
+
+        if (funcionarioAtual == null) {
+            throw new EmpregadoNaoExisteException();
+        }
+
         boolean atributoExiste = atributo.equals("nome") || atributo.equals("endereco") ||
                 atributo.equals("tipo") || atributo.equals("salario") ||
                 atributo.equals("sindicalizado") || atributo.equals("comissao") ||
-                atributo.equals("horasTrabalhadas");
-
-        for (int i = 0; i < listaEmpregados.size(); i++) {
-            Empregado funcionarioAtual = listaEmpregados.get(i);
-
-            if (funcionarioAtual.getId().equals(idBuscado)) {
-                if (!atributoExiste) {
-                    throw new AtributoNaoExisteException();
-                }
-
-                if (atributo.equals("nome")) {
-                    return funcionarioAtual.getNome();
-                } else if (atributo.equals("endereco")) {
-                    return funcionarioAtual.getEndereco();
-                } else if (atributo.equals("tipo")) {
-                    return funcionarioAtual.getTipo();
-                } else if (atributo.equals("salario")) {
-                    return String.format("%.2f", funcionarioAtual.getSalario()).replace(".", ",");
-                } else if (atributo.equals("sindicalizado")) {
-                    return funcionarioAtual.getSindicalizado();
-                } else if (atributo.equals("comissao")) {
-                    return String.format("%.2f", funcionarioAtual.getComissao()).replace(".", ",");
-                } else if (atributo.equals("horasTrabalhadas")) {
-                    return funcionarioAtual.getHorasTrabalhadas();
-                }
-            }
-        }
+                atributo.equals("horasTrabalhadas") || atributo.equals("metodoPagamento") ||
+                atributo.equals("banco") || atributo.equals("agencia") || atributo.equals("contaCorrente") ||
+                atributo.equals("idSindicato") || atributo.equals("taxaSindical");
 
         if (!atributoExiste) {
             throw new AtributoNaoExisteException();
         }
 
-        throw new EmpregadoNaoExisteException();
+        boolean ehAtributoBanco = atributo.equals("banco") || atributo.equals("agencia") || atributo.equals("contaCorrente");
+        if (ehAtributoBanco && !funcionarioAtual.getMetodoPagamento().equals("banco")) {
+            throw new EmpregadoNaoRecebeEmBanco();
+        }
+
+        if ((atributo.equals("idSindicato") || atributo.equals("taxaSindical"))
+                && !funcionarioAtual.getSindicalizado().equals("true")) {
+            throw new EmpregadoNaoEhSindicalizado();
+        }
+
+        if (atributo.equals("nome")) {
+            return funcionarioAtual.getNome();
+        } else if (atributo.equals("endereco")) {
+            return funcionarioAtual.getEndereco();
+        } else if (atributo.equals("tipo")) {
+            return funcionarioAtual.getTipo();
+        } else if (atributo.equals("salario")) {
+            return String.format("%.2f", funcionarioAtual.getSalario()).replace(".", ",");
+        } else if (atributo.equals("sindicalizado")) {
+            return funcionarioAtual.getSindicalizado();
+        } else if (atributo.equals("comissao")) {
+            if (!funcionarioAtual.getTipo().equals("comissionado")) {
+                throw new EmpregadoNaoEhComissionado();
+            }
+            return String.format("%.2f", funcionarioAtual.getComissao()).replace(".", ",");
+        } else if (atributo.equals("horasTrabalhadas")) {
+            return funcionarioAtual.getHorasTrabalhadas();
+        } else if (atributo.equals("metodoPagamento")) {
+            return funcionarioAtual.getMetodoPagamento();
+        } else if (atributo.equals("banco")) {
+            return funcionarioAtual.getBanco();
+        } else if (atributo.equals("agencia")) {
+            return funcionarioAtual.getAgencia();
+        } else if (atributo.equals("contaCorrente")) {
+            return funcionarioAtual.getContaCorrente();
+        } else if (atributo.equals("idSindicato")) {
+            return funcionarioAtual.getIdSindicato();
+        } else if (atributo.equals("taxaSindical")) {
+            return String.format("%.2f", funcionarioAtual.getTaxaSindical()).replace(".", ",");
+        }
+
+        return "";
     }
+
 
     public String getEmpregadoPorNome(String nome, int indice) throws Exception {
         if (nome == null || nome.isEmpty()) {
@@ -485,8 +516,56 @@ public class Facade {
             throw new EmpregadoNaoExisteException();
         }
 
-        if (atributo.equals("sindicalizado")) {
+        if (atributo.equals("nome")) {
+            if (valor == null || valor.isEmpty()) throw new NomeNaoPodeSerNuloException();
+            empregadoEncontrado.setNome(valor);
+        } else if (atributo.equals("endereco")) {
+            if (valor == null || valor.isEmpty()) throw new EnderecoNaoPodeSerNuloException();
+            empregadoEncontrado.setEndereco(valor);
+        } else if (atributo.equals("tipo")) {
+            if (valor == null || (!valor.equals("horista") && !valor.equals("assalariado") && !valor.equals("comissionado"))) {
+                throw new TipoInvalidoException();
+            }
+
+        } else if (atributo.equals("salario")) {
+            if (valor == null || valor.isEmpty()) throw new SalarioNaoPodeSerNuloException();
+
+            double salarioNum;
+
+            try {
+                salarioNum = Double.parseDouble(valor.replace(",", "."));
+            } catch (NumberFormatException e) {
+                throw new SalarioDeveSerNumericoException();
+            }
+            if (salarioNum < 0) throw new SalarioDeveSerNaoNegativoException();
+
+        } else if (atributo.equals("comissao")) {
+            if (!empregadoEncontrado.getTipo().equals("comissionado")) {
+                throw new EmpregadoNaoEhComissionado();
+            }
+            if (valor == null || valor.isEmpty()) throw new ComissaoNaoPodeSerNulaException();
+            double comissaoNum;
+            try {
+                comissaoNum = Double.parseDouble(valor.replace(",", "."));
+            } catch (NumberFormatException e) {
+                throw new ComissaoDeveSerNumericaException();
+            }
+            if (comissaoNum < 0) throw new ComissaoDeveSerNaoNegativaException();
+
+            Comissionado comissionado = (Comissionado) empregadoEncontrado;
+            comissionado.setComissao(comissaoNum);
+        } else if (atributo.equals("metodoPagamento")) {
+            if (valor == null || (!valor.equals("emMaos") && !valor.equals("banco") && !valor.equals("correios"))) {
+                throw new MetodoDePagamentoInvalido();
+            }
+            empregadoEncontrado.setMetodoPagamento(valor);
+        } else if (atributo.equals("sindicalizado")) {
+            if (valor == null || (!valor.equals("true") && !valor.equals("false"))) {
+                throw new ValorDeveSerTruOuFalse();
+            }
             empregadoEncontrado.setSindicalizado(valor);
+        } else {
+            throw new AtributoNaoExisteException();
         }
     }
 
@@ -525,6 +604,38 @@ public class Facade {
             }
         }
     }
+    public void alteraEmpregado(String idEmpregado, String atributo, String valor1, String banco, String agencia, String contaCorrente) throws Exception {
+        if (idEmpregado == null || idEmpregado.isEmpty()) {
+            throw new IdentificacaoEmpregadoNaoPodeSerNulaException();
+        }
+
+        Empregado empregadoEncontrado = null;
+        for (int i = 0; i < listaEmpregados.size(); i++) {
+            Empregado f = listaEmpregados.get(i);
+            if (f.getId().equals(idEmpregado)) {
+                empregadoEncontrado = f;
+                break;
+            }
+        }
+
+        if (empregadoEncontrado == null) {
+            throw new EmpregadoNaoExisteException();
+        }
+
+        if (atributo.equals("metodoPagamento")) {
+            if (valor1.equals("banco")) {
+                if (banco == null || banco.isEmpty()) throw new BancoNaoPodeSerNulo();
+                if (agencia == null || agencia.isEmpty()) throw new AgenciaNaoPodeSerNulo();
+                if (contaCorrente == null || contaCorrente.isEmpty()) throw new ContaCorrenteNaoPodeSerNulo() ;
+
+                empregadoEncontrado.setMetodoPagamento(valor1);
+                empregadoEncontrado.setBanco(banco);
+                empregadoEncontrado.setAgencia(agencia);
+                empregadoEncontrado.setContaCorrente(contaCorrente);
+            }
+        }
+    }
+
     public String getTaxasServico(String idEmpregado, String dataInicial, String dataFinal) throws Exception {
         if (idEmpregado == null || idEmpregado.isEmpty()) {
             throw new IdentificacaoEmpregadoNaoPodeSerNulaException();

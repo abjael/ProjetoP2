@@ -25,4 +25,7 @@ public class Comissionado extends Empregado {
     public List<Venda> getVendas() {
         return vendas;
     }
+    public void setComissao(double comissao) {
+        this.comissao = comissao;
+    }
 }
