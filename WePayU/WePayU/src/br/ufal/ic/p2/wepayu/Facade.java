@@ -504,10 +504,12 @@ public class Facade {
         }
 
         Empregado empregadoEncontrado = null;
+        int indiceEmpregado = -1;
         for (int i = 0; i < listaEmpregados.size(); i++) {
             Empregado funcionarioAtual = listaEmpregados.get(i);
             if (funcionarioAtual.getId().equals(idEmpregado)) {
                 empregadoEncontrado = funcionarioAtual;
+                indiceEmpregado = i;
                 break;
             }
         }
@@ -527,11 +529,25 @@ public class Facade {
                 throw new TipoInvalidoException();
             }
 
+            double salarioAtual = empregadoEncontrado.getSalario();
+            Empregado novo;
+            if (valor.equals("horista")) {
+                novo = new Horista(empregadoEncontrado.getId(), empregadoEncontrado.getNome(), empregadoEncontrado.getEndereco(), valor, salarioAtual, empregadoEncontrado.getSindicalizado());
+            } else if (valor.equals("assalariado")) {
+                novo = new Assalariado(empregadoEncontrado.getId(), empregadoEncontrado.getNome(), empregadoEncontrado.getEndereco(), valor, salarioAtual, empregadoEncontrado.getSindicalizado());
+            } else {
+                novo = new Comissionado(empregadoEncontrado.getId(), empregadoEncontrado.getNome(), empregadoEncontrado.getEndereco(), valor, salarioAtual, 0.0, empregadoEncontrado.getSindicalizado());
+            }
+            novo.setMetodoPagamento(empregadoEncontrado.getMetodoPagamento());
+            novo.setBanco(empregadoEncontrado.getBanco());
+            novo.setAgencia(empregadoEncontrado.getAgencia());
+            novo.setContaCorrente(empregadoEncontrado.getContaCorrente());
+            listaEmpregados.set(indiceEmpregado, novo);
+
         } else if (atributo.equals("salario")) {
             if (valor == null || valor.isEmpty()) throw new SalarioNaoPodeSerNuloException();
 
             double salarioNum;
-
             try {
                 salarioNum = Double.parseDouble(valor.replace(",", "."));
             } catch (NumberFormatException e) {
@@ -539,11 +555,30 @@ public class Facade {
             }
             if (salarioNum < 0) throw new SalarioDeveSerNaoNegativoException();
 
+
+            Empregado novo;
+            String tipoAtual = empregadoEncontrado.getTipo();
+            if (tipoAtual.equals("horista")) {
+                novo = new Horista(empregadoEncontrado.getId(), empregadoEncontrado.getNome(), empregadoEncontrado.getEndereco(), tipoAtual, salarioNum, empregadoEncontrado.getSindicalizado());
+            } else if (tipoAtual.equals("assalariado")) {
+                novo = new Assalariado(empregadoEncontrado.getId(), empregadoEncontrado.getNome(), empregadoEncontrado.getEndereco(), tipoAtual, salarioNum, empregadoEncontrado.getSindicalizado());
+            } else {
+                Comissionado c = (Comissionado) empregadoEncontrado;
+                novo = new Comissionado(empregadoEncontrado.getId(), empregadoEncontrado.getNome(), empregadoEncontrado.getEndereco(), tipoAtual, salarioNum, c.getComissao(), empregadoEncontrado.getSindicalizado());
+            }
+            novo.setMetodoPagamento(empregadoEncontrado.getMetodoPagamento());
+            novo.setBanco(empregadoEncontrado.getBanco());
+            novo.setAgencia(empregadoEncontrado.getAgencia());
+            novo.setContaCorrente(empregadoEncontrado.getContaCorrente());
+            listaEmpregados.set(indiceEmpregado, novo);
+
         } else if (atributo.equals("comissao")) {
+            if (valor == null || valor.isEmpty()) {
+                throw new ComissaoNaoPodeSerNulaException();
+            }
             if (!empregadoEncontrado.getTipo().equals("comissionado")) {
                 throw new EmpregadoNaoEhComissionado();
             }
-            if (valor == null || valor.isEmpty()) throw new ComissaoNaoPodeSerNulaException();
             double comissaoNum;
             try {
                 comissaoNum = Double.parseDouble(valor.replace(",", "."));
@@ -568,6 +603,77 @@ public class Facade {
             throw new AtributoNaoExisteException();
         }
     }
+    public void alteraEmpregado(String idEmpregado, String atributo, String valor, String valorExtra) throws Exception {
+        if (idEmpregado == null || idEmpregado.isEmpty()) {
+            throw new IdentificacaoEmpregadoNaoPodeSerNulaException();
+        }
+
+        Empregado empregadoEncontrado = null;
+        int indiceEmpregado = -1;
+        for (int i = 0; i < listaEmpregados.size(); i++) {
+            Empregado funcionarioAtual = listaEmpregados.get(i);
+            if (funcionarioAtual.getId().equals(idEmpregado)) {
+                empregadoEncontrado = funcionarioAtual;
+                indiceEmpregado = i;
+                break;
+            }
+        }
+
+        if (empregadoEncontrado == null) {
+            throw new EmpregadoNaoExisteException();
+        }
+
+        if (atributo.equals("tipo")) {
+            if (valor == null || (!valor.equals("horista") && !valor.equals("assalariado") && !valor.equals("comissionado"))) {
+                throw new TipoInvalidoException();
+            }
+
+            if (valor.equals("horista") || valor.equals("assalariado")) {
+                if (valorExtra == null || valorExtra.isEmpty()) {
+                    throw new SalarioNaoPodeSerNuloException();
+                }
+                double salarioNum;
+                try {
+                    salarioNum = Double.parseDouble(valorExtra.replace(",", "."));
+                } catch (NumberFormatException e) {
+                    throw new SalarioDeveSerNumericoException();
+                }
+                if (salarioNum < 0) {
+                    throw new SalarioDeveSerNaoNegativoException();
+                }
+
+                Empregado novo;
+                if (valor.equals("horista")) {
+                    novo = new Horista(empregadoEncontrado.getId(), empregadoEncontrado.getNome(), empregadoEncontrado.getEndereco(), valor, salarioNum, empregadoEncontrado.getSindicalizado());
+                } else {
+                    novo = new Assalariado(empregadoEncontrado.getId(), empregadoEncontrado.getNome(), empregadoEncontrado.getEndereco(), valor, salarioNum, empregadoEncontrado.getSindicalizado());
+                }
+                novo.setMetodoPagamento(empregadoEncontrado.getMetodoPagamento());
+                novo.setBanco(empregadoEncontrado.getBanco());
+                novo.setAgencia(empregadoEncontrado.getAgencia());
+                novo.setContaCorrente(empregadoEncontrado.getContaCorrente());
+                listaEmpregados.set(indiceEmpregado, novo);
+
+            } else if (valor.equals("comissionado")) {
+                double salarioAtual = empregadoEncontrado.getSalario();
+                double comissaoNum = 0.0;
+                if (valorExtra != null && !valorExtra.isEmpty()) {
+                    try {
+                        comissaoNum = Double.parseDouble(valorExtra.replace(",", "."));
+                    } catch (NumberFormatException e) {
+                        throw new ComissaoDeveSerNumericaException();
+                    }
+                }
+
+                Comissionado novo = new Comissionado(empregadoEncontrado.getId(), empregadoEncontrado.getNome(), empregadoEncontrado.getEndereco(), valor, salarioAtual, comissaoNum, empregadoEncontrado.getSindicalizado());
+                novo.setMetodoPagamento(empregadoEncontrado.getMetodoPagamento());
+                novo.setBanco(empregadoEncontrado.getBanco());
+                novo.setAgencia(empregadoEncontrado.getAgencia());
+                novo.setContaCorrente(empregadoEncontrado.getContaCorrente());
+                listaEmpregados.set(indiceEmpregado, novo);
+            }
+        }
+    }
 
     public void alteraEmpregado(String idEmpregado, String atributo, String valor, String idSindicato, String taxaSindical) throws Exception {
         if (idEmpregado == null || idEmpregado.isEmpty()) {
@@ -587,20 +693,38 @@ public class Facade {
             throw new EmpregadoNaoExisteException();
         }
 
-        for (int i = 0; i < listaEmpregados.size(); i++) {
-            Empregado f = listaEmpregados.get(i);
-            if (f.getIdSindicato() != null && f.getIdSindicato().equals(idSindicato) && !f.getId().equals(idEmpregado)) {
-                throw new HaOutroEmpregadoComEstaIdentificacaoDeSindicato();
-            }
-        }
-
         if (atributo.equals("sindicalizado")) {
-            empregadoEncontrado.setSindicalizado(valor);
-            empregadoEncontrado.setIdSindicato(idSindicato);
+            if (valor.equals("true")) {
+                if (idSindicato == null || idSindicato.isEmpty()) {
+                    throw new IdentificacaoDoSindicatoNaoPodeSerNula();
+                }
+                if (taxaSindical == null || taxaSindical.isEmpty()) {
+                    throw new TaxaSIndicalNaoPodeSerNula();
+                }
 
-            if (taxaSindical != null && !taxaSindical.isEmpty()) {
-                double taxaNum = Double.parseDouble(taxaSindical.replace(",", "."));
+                double taxaNum;
+                try {
+                    taxaNum = Double.parseDouble(taxaSindical.replace(",", "."));
+                } catch (NumberFormatException e) {
+                    throw new TaxaSindicalDeveSerNumerica();
+                }
+                if (taxaNum < 0) {
+                    throw new TaxaSindicalDeveSerNaoNegativa();
+                }
+
+                for (int i = 0; i < listaEmpregados.size(); i++) {
+                    Empregado f = listaEmpregados.get(i);
+                    if (f.getIdSindicato() != null && f.getIdSindicato().equals(idSindicato) && !f.getId().equals(idEmpregado)) {
+                        throw new HaOutroEmpregadoComEstaIdentificacaoDeSindicato();
+                    }
+                }
+
+                empregadoEncontrado.setSindicalizado(valor);
+                empregadoEncontrado.setIdSindicato(idSindicato);
                 empregadoEncontrado.setTaxaSindical(taxaNum);
+            } else {
+                empregadoEncontrado.setSindicalizado(valor);
+                empregadoEncontrado.setIdSindicato(null);
             }
         }
     }
