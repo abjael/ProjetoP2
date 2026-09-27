@@ -843,10 +843,258 @@ public class Facade {
 
         empregadoEncontrado.adicionarTaxaServico(data, valorNumero);
     }
+    private static java.util.Map<String, String> folhasGeradas = new java.util.HashMap<>();
+
+    public void rodaFolha(String data, String saida) throws Exception {
+        if (folhasGeradas.containsKey(data)) {
+            try (java.io.PrintWriter writer = new java.io.PrintWriter(saida)) {
+                writer.print(folhasGeradas.get(data));
+            } catch (Exception e) {
+                throw new ErroAoGerarArquivoDeFolha();
+            }
+            return;
+        }
+        validarData(data);
+        if (saida == null || saida.isEmpty()) {
+            throw new ArquivoDeSaidaNaoPodeSerNulo();
+        }
+
+        java.time.LocalDate dataObj = parseData(data);
+        String dataFormatada = dataObj.toString();
+
+        StringBuilder conteudo = new StringBuilder();
+        conteudo.append("FOLHA DE PAGAMENTO DO DIA ").append(dataFormatada).append("\n");
+        conteudo.append("====================================\n");
+        conteudo.append("\n");
+
+        double totalFolhaGeral = 0.0;
+
+
+        java.util.List<Empregado> horistasOrdenados = new java.util.ArrayList<>();
+        java.util.List<Empregado> assalariadosOrdenados = new java.util.ArrayList<>();
+        java.util.List<Empregado> comissionadosOrdenados = new java.util.ArrayList<>();
+        for (Empregado emp : listaEmpregados) {
+            switch (emp.getTipo()) {
+                case "horista": horistasOrdenados.add(emp); break;
+                case "assalariado": assalariadosOrdenados.add(emp); break;
+                case "comissionado": comissionadosOrdenados.add(emp); break;
+            }
+        }
+        java.util.Comparator<Empregado> porNome = java.util.Comparator.comparing(Empregado::getNome);
+        horistasOrdenados.sort(porNome);
+        assalariadosOrdenados.sort(porNome);
+        comissionadosOrdenados.sort(porNome);
+
+        // =========================================================================
+        // HORISTAS
+        // =========================================================================
+        conteudo.append("===============================================================================================================================\n");
+        conteudo.append("===================== HORISTAS ================================================================================================\n");
+        conteudo.append("===============================================================================================================================\n");
+        conteudo.append("Nome                                 Horas Extra Salario Bruto Descontos Salario Liquido Metodo\n");
+        conteudo.append("==================================== ===== ===== ============= ========= =============== ======================================\n");
+
+        double totalHoras = 0.0;
+        double totalExtras = 0.0;
+        double totalBrutoHoristas = 0.0;
+        double totalDescontosHoristas = 0.0;
+        double totalLiquidoHoristas = 0.0;
+
+        for (Empregado emp : horistasOrdenados) {
+            if (emp.ehDiaDePagamento(data)) {
+                if (emp.getUltimaDataPagamento() != null && emp.getUltimaDataPagamento().equals(dataObj)) {
+                    continue;
+                }
+
+                Horista horista = (Horista) emp;
+                java.time.LocalDate dataInicio = emp.getUltimaDataPagamento().plusDays(1);
+                String dataInicial = String.format("%02d/%02d/%d", dataInicio.getDayOfMonth(), dataInicio.getMonthValue(), dataInicio.getYear());
+
+                double horas = horista.getHorasNormais(dataInicial, data);
+                double extras = horista.getHorasExtras(dataInicial, data);
+                double bruto = emp.calcularSalarioBruto(data);
+                double liquido = emp.calcularSalarioLiquido(data);
+                double descontos = bruto - liquido;
+
+                totalHoras += horas;
+                totalExtras += extras;
+                totalBrutoHoristas += bruto;
+                totalDescontosHoristas += descontos;
+                totalLiquidoHoristas += liquido;
+                totalFolhaGeral += bruto;
+
+                String metodo = formatarMetodoPagamento(emp);
+
+
+                String linhaNumeros = String.format(
+                        "%-36s %5.0f %5.0f %13.2f %9.2f %15.2f ",
+                        emp.getNome(), horas, extras, bruto, descontos, liquido
+                ).replace(".", ",");
+                conteudo.append(linhaNumeros).append(metodo).append("\n");
+
+                if (bruto > 0) {
+                    emp.setUltimaDataPagamento(dataObj);
+                }
+            }
+        }
+
+        conteudo.append("\n");
+        conteudo.append(String.format(
+                "TOTAL HORISTAS                       %5.0f %5.0f %13.2f %9.2f %15.2f\n",
+                totalHoras, totalExtras, totalBrutoHoristas, totalDescontosHoristas, totalLiquidoHoristas
+        ).replace(".", ","));
+        conteudo.append("\n");
+
+        // =========================================================================
+        // ASSALARIADOS
+        // =========================================================================
+        conteudo.append("===============================================================================================================================\n");
+        conteudo.append("===================== ASSALARIADOS ============================================================================================\n");
+        conteudo.append("===============================================================================================================================\n");
+        conteudo.append("Nome                                             Salario Bruto Descontos Salario Liquido Metodo\n");
+        conteudo.append("================================================ ============= ========= =============== ======================================\n");
+
+        double totalBrutoAssalariados = 0.0;
+        double totalDescontosAssalariados = 0.0;
+        double totalLiquidoAssalariados = 0.0;
+
+        for (Empregado emp : assalariadosOrdenados) {
+            if (emp.ehDiaDePagamento(data)) {
+                if (emp.getUltimaDataPagamento() != null && emp.getUltimaDataPagamento().equals(dataObj)) {
+                    continue;
+                }
+
+                double bruto = emp.calcularSalarioBruto(data);
+                double liquido = emp.calcularSalarioLiquido(data);
+                double descontos = bruto - liquido;
+
+                totalBrutoAssalariados += bruto;
+                totalDescontosAssalariados += descontos;
+                totalLiquidoAssalariados += liquido;
+                totalFolhaGeral += bruto;
+
+                String metodo = formatarMetodoPagamento(emp);
+
+                String linhaNumeros = String.format(
+                        "%-48s %13.2f %9.2f %15.2f ",
+                        emp.getNome(), bruto, descontos, liquido
+                ).replace(".", ",");
+                conteudo.append(linhaNumeros).append(metodo).append("\n");
+
+                emp.setUltimaDataPagamento(dataObj);
+            }
+        }
+
+        conteudo.append("\n");
+        conteudo.append(String.format(
+                "TOTAL ASSALARIADOS                               %13.2f %9.2f %15.2f\n",
+                totalBrutoAssalariados, totalDescontosAssalariados, totalLiquidoAssalariados
+        ).replace(".", ","));
+        conteudo.append("\n");
+
+        // =========================================================================
+        // COMISSIONADOS
+        // =========================================================================
+        conteudo.append("===============================================================================================================================\n");
+        conteudo.append("===================== COMISSIONADOS ===========================================================================================\n");
+        conteudo.append("===============================================================================================================================\n");
+        conteudo.append("Nome                  Fixo     Vendas   Comissao Salario Bruto Descontos Salario Liquido Metodo\n");
+        conteudo.append("===================== ======== ======== ======== ============= ========= =============== ======================================\n");
+
+        double totalFixo = 0.0;
+        double totalVendas = 0.0;
+        double totalComissao = 0.0;
+        double totalBrutoComissionados = 0.0;
+        double totalDescontosComissionados = 0.0;
+        double totalLiquidoComissionados = 0.0;
+
+        for (Empregado emp : comissionadosOrdenados) {
+            if (emp.ehDiaDePagamento(data)) {
+                if (emp.getUltimaDataPagamento() != null && emp.getUltimaDataPagamento().equals(dataObj)) {
+                    continue;
+                }
+
+                Comissionado comissionado = (Comissionado) emp;
+                java.time.LocalDate dataInicio = emp.getUltimaDataPagamento().plusDays(1);
+
+                double vendas = 0.0;
+                for (Venda venda : comissionado.getVendas()) {
+                    java.time.LocalDate dataVenda = parseData(venda.getData());
+                    if (!dataVenda.isBefore(dataInicio) && !dataVenda.isAfter(dataObj)) {
+                        vendas += venda.getValor();
+                    }
+                }
+
+                double comissao = Math.floor(vendas * emp.getComissao() * 100) / 100.0;
+                double fixo = Math.floor(emp.getSalario() * 12.0 / 52.0 * 2.0 * 100) / 100.0;
+                double bruto = emp.calcularSalarioBruto(data);
+                double liquido = emp.calcularSalarioLiquido(data);
+                double descontos = bruto - liquido;
+
+                totalFixo += fixo;
+                totalVendas += vendas;
+                totalComissao += comissao;
+                totalBrutoComissionados += bruto;
+                totalDescontosComissionados += descontos;
+                totalLiquidoComissionados += liquido;
+                totalFolhaGeral += bruto;
+
+                String metodo = formatarMetodoPagamento(emp);
+
+                String linhaNumeros = String.format(
+                        "%-21s %8.2f %8.2f %8.2f %13.2f %9.2f %15.2f ",
+                        emp.getNome(), fixo, vendas, comissao, bruto, descontos, liquido
+                ).replace(".", ",");
+                conteudo.append(linhaNumeros).append(metodo).append("\n");
+
+                emp.setUltimaDataPagamento(dataObj);
+            }
+        }
+
+        conteudo.append("\n");
+        conteudo.append(String.format(
+                "TOTAL COMISSIONADOS   %8.2f %8.2f %8.2f %13.2f %9.2f %15.2f\n",
+                totalFixo, totalVendas, totalComissao, totalBrutoComissionados, totalDescontosComissionados, totalLiquidoComissionados
+        ).replace(".", ","));
+        conteudo.append("\n");
+
+        conteudo.append("TOTAL FOLHA: ").append(String.format("%.2f", totalFolhaGeral).replace(".", ",")).append("\n");
+
+        folhasGeradas.put(data, conteudo.toString());
+
+        try (java.io.PrintWriter writer = new java.io.PrintWriter(saida)) {
+            writer.print(conteudo.toString());
+        } catch (Exception e) {
+            throw new ErroAoGerarArquivoDeFolha();
+        }
+    }
+
+    private String formatarMetodoPagamento(Empregado emp) {
+        String metodo = emp.getMetodoPagamento();
+        if (metodo == null || metodo.equalsIgnoreCase("emMaos") || metodo.equalsIgnoreCase("em maos")) {
+            return "Em maos";
+        } else if (metodo.equalsIgnoreCase("correios")) {
+            return "Correios, " + emp.getEndereco();
+        } else if (metodo.equalsIgnoreCase("banco")) {
+            return String.format("%s, Ag. %s CC %s", emp.getBanco(), emp.getAgencia(), emp.getContaCorrente());
+        }
+        return metodo;
+    }
+    public String totalFolha(String data) throws Exception {
+        validarData(data);
+        double totalGeral = 0.0;
+        for (Empregado emp : listaEmpregados) {
+            if (emp.ehDiaDePagamento(data)) {
+                totalGeral += emp.calcularSalarioBruto(data);
+            }
+        }
+        return String.format("%.2f", totalGeral).replace(".", ",");
+    }
 
 
     public void zerarSistema() {
         Facade.listaEmpregados.clear();
+        Facade.folhasGeradas.clear();
     }
 
     public void encerrarSistema() {
