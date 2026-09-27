@@ -118,4 +118,13 @@ public class Horista extends Empregado {
 
         return Math.max(0.0, bruto - descontoSindical - totalTaxasServico);
     }
+    @Override
+    public Empregado clonar() {
+        Horista copia = new Horista(getId(), getNome(), getEndereco(), getTipo(), getSalario(), getSindicalizado());
+        copiarCamposComunsPara(copia);
+        for (CartaoPonto c : this.cartoes) {
+            copia.lancarCartao(c.getData(), c.getHoras());
+        }
+        return copia;
+    }
 }

@@ -81,5 +81,21 @@ public abstract class Empregado {
         int ano = Integer.parseInt(partes[2]);
         return LocalDate.of(ano, mes, dia);
     }
+    public abstract Empregado clonar();
+
+    protected void copiarCamposComunsPara(Empregado destino) {
+        destino.setMetodoPagamento(this.getMetodoPagamento());
+        destino.setBanco(this.getBanco());
+        destino.setAgencia(this.getAgencia());
+        destino.setContaCorrente(this.getContaCorrente());
+        destino.setUltimaDataPagamento(this.getUltimaDataPagamento());
+        if ("true".equals(this.getSindicalizado())) {
+            destino.setIdSindicato(this.getIdSindicato());
+            destino.setTaxaSindical(this.getTaxaSindical());
+        }
+        for (TaxaServico ts : this.getTaxasServico()) {
+            destino.adicionarTaxaServico(ts.getData(), ts.getValor());
+        }
+    }
 }
 

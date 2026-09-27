@@ -44,4 +44,10 @@ public class Assalariado extends Empregado {
 
         return Math.max(0.0, bruto - descontoSindical - totalTaxasServico);
     }
+    @Override
+    public Empregado clonar() {
+        Assalariado copia = new Assalariado(getId(), getNome(), getEndereco(), getTipo(), getSalario(), getSindicalizado());
+        copiarCamposComunsPara(copia);
+        return copia;
+    }
 }

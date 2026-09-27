@@ -81,4 +81,13 @@ public class Comissionado extends Empregado {
 
         return Math.max(0.0, bruto - descontoSindical - totalTaxasServico);
     }
+    @Override
+    public Empregado clonar() {
+        Comissionado copia = new Comissionado(getId(), getNome(), getEndereco(), getTipo(), getSalario(), getComissao(), getSindicalizado());
+        copiarCamposComunsPara(copia);
+        for (Venda v : this.getVendas()) {
+            copia.adicionarVenda(v.getData(), v.getValor());
+        }
+        return copia;
+    }
 }

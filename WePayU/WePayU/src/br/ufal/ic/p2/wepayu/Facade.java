@@ -13,9 +13,80 @@ import java.util.List;
 
 public class Facade {
 
+
     private static List<Empregado> listaEmpregados = new ArrayList<>();
+    private static java.util.Map<String, String> folhasGeradas = new java.util.HashMap<>();
+    private boolean sistemaEncerrado = false;
+
+    private java.util.Deque<Estado> pilhaUndo = new java.util.ArrayDeque<>();
+    private java.util.Deque<Estado> pilhaRedo = new java.util.ArrayDeque<>();
+
+    private static class Estado {
+        List<Empregado> listaEmpregados;
+        java.util.Map<String, String> folhasGeradas;
+        Estado(List<Empregado> lista, java.util.Map<String, String> folhas) {
+            this.listaEmpregados = lista;
+            this.folhasGeradas = folhas;
+        }
+    }
+
+    private static List<Empregado> clonarLista(List<Empregado> original) {
+        List<Empregado> copia = new ArrayList<>();
+        for (Empregado e : original) {
+            copia.add(e.clonar());
+        }
+        return copia;
+    }
+
+    private static Estado capturarEstadoAtual() {
+        return new Estado(clonarLista(listaEmpregados), new java.util.HashMap<>(folhasGeradas));
+    }
+
+    private static void restaurarEstado(Estado e) {
+        listaEmpregados = e.listaEmpregados;
+        folhasGeradas = e.folhasGeradas;
+    }
+
+    private void salvarEstadoParaUndo(Estado estadoAntes) {
+        pilhaUndo.push(estadoAntes);
+        pilhaRedo.clear();
+    }
+
+    private void verificarSistemaAtivo() throws Exception {
+        if (sistemaEncerrado) {
+            throw new SistemEncerrado();
+        }
+    }
+
+    public int getNumeroDeEmpregados() throws Exception {
+        verificarSistemaAtivo();
+        return listaEmpregados.size();
+    }
+
+    public void undo() throws Exception {
+        verificarSistemaAtivo();
+        if (pilhaUndo.isEmpty()) {
+            throw new  NaoHaComandoParaDesfazer();
+        }
+        Estado estadoAtual = capturarEstadoAtual();
+        pilhaRedo.push(estadoAtual);
+        restaurarEstado(pilhaUndo.pop());
+    }
+
+    public void redo() throws Exception {
+        verificarSistemaAtivo();
+        if (pilhaRedo.isEmpty()) {
+            throw new NaoHaComandoParaRefazer();
+        }
+        Estado estadoAtual = capturarEstadoAtual();
+        pilhaUndo.push(estadoAtual);
+        restaurarEstado(pilhaRedo.pop());
+    }
 
     public String criarEmpregado(String nome, String endereco, String tipo, String salario) throws Exception {
+        verificarSistemaAtivo();
+        Estado estadoAntes = capturarEstadoAtual();
+
         if (nome == null || nome.isEmpty()) {
             throw new NomeNaoPodeSerNuloException();
         }
@@ -53,10 +124,14 @@ public class Facade {
         }
 
         listaEmpregados.add(novoFuncionario);
+        salvarEstadoParaUndo(estadoAntes);
         return idGerado;
     }
 
     public String criarEmpregado(String nome, String endereco, String tipo, String salario, String comissao) throws Exception {
+        verificarSistemaAtivo();
+        Estado estadoAntes = capturarEstadoAtual();
+
         if (nome == null || nome.isEmpty()) {
             throw new NomeNaoPodeSerNuloException();
         }
@@ -103,6 +178,7 @@ public class Facade {
         Empregado novoEmpregado = new Comissionado(idGerado, nome, endereco, tipo, salarioNumero, comissaoNumero, "false");
 
         listaEmpregados.add(novoEmpregado);
+        salvarEstadoParaUndo(estadoAntes);
         return idGerado;
     }
 
@@ -201,6 +277,9 @@ public class Facade {
     }
 
     public void removerEmpregado(String idBuscado) throws Exception {
+        verificarSistemaAtivo();
+        Estado estadoAntes = capturarEstadoAtual();
+
         if (idBuscado == null || idBuscado.isEmpty()) {
             throw new IdentificacaoEmpregadoNaoPodeSerNulaException();
         }
@@ -209,6 +288,7 @@ public class Facade {
             Empregado funcionarioAtual = listaEmpregados.get(i);
             if (funcionarioAtual.getId().equals(idBuscado)) {
                 listaEmpregados.remove(i);
+                salvarEstadoParaUndo(estadoAntes);
                 return;
             }
         }
@@ -217,6 +297,9 @@ public class Facade {
     }
 
     public void lancaCartao(String idEmp, String data, String horas) throws Exception {
+        verificarSistemaAtivo();
+        Estado estadoAntes = capturarEstadoAtual();
+
         if (idEmp == null || idEmp.isEmpty()) {
             throw new IdentificacaoEmpregadoNaoPodeSerNulaException();
         }
@@ -257,6 +340,7 @@ public class Facade {
 
         Horista horista = (Horista) empregadoEncontrado;
         horista.lancarCartao(data, horasNumero);
+        salvarEstadoParaUndo(estadoAntes);
     }
 
     private void validarData(String data) throws Exception {
@@ -404,7 +488,11 @@ public class Facade {
         }
         return String.format("%.1f", horas).replace(".", ",");
     }
+
     public void lancaVenda(String idBuscado, String data, String valor) throws Exception {
+        verificarSistemaAtivo();
+        Estado estadoAntes = capturarEstadoAtual();
+
         if (idBuscado == null || idBuscado.isEmpty()) {
             throw new IdentificacaoEmpregadoNaoPodeSerNulaException();
         }
@@ -445,7 +533,9 @@ public class Facade {
 
         Comissionado comissionado = (Comissionado) empregadoEncontrado;
         comissionado.adicionarVenda(data, valorNumero);
+        salvarEstadoParaUndo(estadoAntes);
     }
+
     private java.time.LocalDate parseData(String data) {
         String[] partes = data.split("/");
         int dia = Integer.parseInt(partes[0]);
@@ -498,7 +588,11 @@ public class Facade {
 
         return String.format("%.2f", totalVendas).replace(".", ",");
     }
+
     public void alteraEmpregado(String idEmpregado, String atributo, String valor) throws Exception {
+        verificarSistemaAtivo();
+        Estado estadoAntes = capturarEstadoAtual();
+
         if (idEmpregado == null || idEmpregado.isEmpty()) {
             throw new IdentificacaoEmpregadoNaoPodeSerNulaException();
         }
@@ -602,8 +696,14 @@ public class Facade {
         } else {
             throw new AtributoNaoExisteException();
         }
+
+        salvarEstadoParaUndo(estadoAntes);
     }
+
     public void alteraEmpregado(String idEmpregado, String atributo, String valor, String valorExtra) throws Exception {
+        verificarSistemaAtivo();
+        Estado estadoAntes = capturarEstadoAtual();
+
         if (idEmpregado == null || idEmpregado.isEmpty()) {
             throw new IdentificacaoEmpregadoNaoPodeSerNulaException();
         }
@@ -673,9 +773,14 @@ public class Facade {
                 listaEmpregados.set(indiceEmpregado, novo);
             }
         }
+
+        salvarEstadoParaUndo(estadoAntes);
     }
 
     public void alteraEmpregado(String idEmpregado, String atributo, String valor, String idSindicato, String taxaSindical) throws Exception {
+        verificarSistemaAtivo();
+        Estado estadoAntes = capturarEstadoAtual();
+
         if (idEmpregado == null || idEmpregado.isEmpty()) {
             throw new IdentificacaoEmpregadoNaoPodeSerNulaException();
         }
@@ -727,8 +832,14 @@ public class Facade {
                 empregadoEncontrado.setIdSindicato(null);
             }
         }
+
+        salvarEstadoParaUndo(estadoAntes);
     }
+
     public void alteraEmpregado(String idEmpregado, String atributo, String valor1, String banco, String agencia, String contaCorrente) throws Exception {
+        verificarSistemaAtivo();
+        Estado estadoAntes = capturarEstadoAtual();
+
         if (idEmpregado == null || idEmpregado.isEmpty()) {
             throw new IdentificacaoEmpregadoNaoPodeSerNulaException();
         }
@@ -758,6 +869,8 @@ public class Facade {
                 empregadoEncontrado.setContaCorrente(contaCorrente);
             }
         }
+
+        salvarEstadoParaUndo(estadoAntes);
     }
 
     public String getTaxasServico(String idEmpregado, String dataInicial, String dataFinal) throws Exception {
@@ -805,7 +918,11 @@ public class Facade {
         return String.format("%.2f", totalTaxas).replace(".", ",");
 
     }
+
     public void lancaTaxaServico(String idSindicato, String data, String valor) throws Exception {
+        verificarSistemaAtivo();
+        Estado estadoAntes = capturarEstadoAtual();
+
         if (idSindicato == null || idSindicato.isEmpty()) {
             throw new IdentificacaoDoMembroNaoPodeSerNula() ;
         }
@@ -842,10 +959,12 @@ public class Facade {
         }
 
         empregadoEncontrado.adicionarTaxaServico(data, valorNumero);
+        salvarEstadoParaUndo(estadoAntes);
     }
-    private static java.util.Map<String, String> folhasGeradas = new java.util.HashMap<>();
 
     public void rodaFolha(String data, String saida) throws Exception {
+        verificarSistemaAtivo();
+
         if (folhasGeradas.containsKey(data)) {
             try (java.io.PrintWriter writer = new java.io.PrintWriter(saida)) {
                 writer.print(folhasGeradas.get(data));
@@ -858,6 +977,8 @@ public class Facade {
         if (saida == null || saida.isEmpty()) {
             throw new ArquivoDeSaidaNaoPodeSerNulo();
         }
+
+        Estado estadoAntes = capturarEstadoAtual();
 
         java.time.LocalDate dataObj = parseData(data);
         String dataFormatada = dataObj.toString();
@@ -1061,6 +1182,7 @@ public class Facade {
         conteudo.append("TOTAL FOLHA: ").append(String.format("%.2f", totalFolhaGeral).replace(".", ",")).append("\n");
 
         folhasGeradas.put(data, conteudo.toString());
+        salvarEstadoParaUndo(estadoAntes);
 
         try (java.io.PrintWriter writer = new java.io.PrintWriter(saida)) {
             writer.print(conteudo.toString());
@@ -1080,6 +1202,7 @@ public class Facade {
         }
         return metodo;
     }
+
     public String totalFolha(String data) throws Exception {
         validarData(data);
         double totalGeral = 0.0;
@@ -1091,12 +1214,15 @@ public class Facade {
         return String.format("%.2f", totalGeral).replace(".", ",");
     }
 
-
-    public void zerarSistema() {
-        Facade.listaEmpregados.clear();
-        Facade.folhasGeradas.clear();
+    public void encerrarSistema() {
+        sistemaEncerrado = true;
     }
 
-    public void encerrarSistema() {
+    public void zerarSistema() {
+        Estado estadoAntes = capturarEstadoAtual();
+        Facade.listaEmpregados.clear();
+        Facade.folhasGeradas.clear();
+        sistemaEncerrado = false;
+        salvarEstadoParaUndo(estadoAntes);
     }
 }
