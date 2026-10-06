@@ -127,4 +127,7 @@ public class Horista extends Empregado {
         }
         return copia;
     }
+    public List<CartaoPonto> getCartoes() {
+        return cartoes;
+    }
 }
