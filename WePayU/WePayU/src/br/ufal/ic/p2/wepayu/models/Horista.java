@@ -1,22 +1,21 @@
 package br.ufal.ic.p2.wepayu.models;
 
-import br.ufal.ic.p2.wepayu.Exception.EmpregadoNaoEhComissionado;
+import br.ufal.ic.p2.wepayu.exception.EmpregadoNaoEhComissionadoException;
+import br.ufal.ic.p2.wepayu.exception.DescricaoDeAgendaInvalidaException;
 import java.time.LocalDate;
 import java.time.DayOfWeek;
 import java.util.ArrayList;
 import java.util.List;
 
 public class Horista extends Empregado {
-    private List<CartaoPonto> cartoes;
-
     public Horista(String id, String nome, String endereco, double salario, boolean sindicalizado) {
         super(id, nome, endereco, salario, sindicalizado);
-        this.cartoes = new ArrayList<>();
+        setAgendaPagamento(AgendaPagamento.defaultAgenda(TipoEmpregado.HORISTA));
     }
 
     @Override
     public void lancarCartao(String data, double horas) {
-        this.cartoes.add(new CartaoPonto(data, horas));
+        registrarCartao(data, horas);
     }
     @Override
     public double getHorasNormais(String dataInicial, String dataFinal) {
@@ -24,7 +23,7 @@ public class Horista extends Empregado {
         LocalDate fim = parseData(dataFinal);
         double total = 0.0;
 
-        for (CartaoPonto cartao : cartoes) {
+        for (CartaoPonto cartao : getCartoes()) {
             LocalDate dataCartao = parseData(cartao.getData());
             if (!dataCartao.isBefore(inicio) && dataCartao.isBefore(fim)) {
                 double h = cartao.getHoras();
@@ -40,7 +39,7 @@ public class Horista extends Empregado {
         LocalDate fim = parseData(dataFinal);
         double total = 0.0;
 
-        for (CartaoPonto cartao : cartoes) {
+        for (CartaoPonto cartao : getCartoes()) {
             LocalDate dataCartao = parseData(cartao.getData());
             if (!dataCartao.isBefore(inicio) && dataCartao.isBefore(fim)) {
                 double h = cartao.getHoras();
@@ -55,7 +54,7 @@ public class Horista extends Empregado {
 
     private double getHorasNormaisInclusivo(LocalDate inicio, LocalDate fim) {
         double total = 0.0;
-        for (CartaoPonto cartao : cartoes) {
+        for (CartaoPonto cartao : getCartoes()) {
             LocalDate dataCartao = parseData(cartao.getData());
             if (!dataCartao.isBefore(inicio) && !dataCartao.isAfter(fim)) {
                 double h = cartao.getHoras();
@@ -68,7 +67,7 @@ public class Horista extends Empregado {
 
     private double getHorasExtrasInclusivo(LocalDate inicio, LocalDate fim) {
         double total = 0.0;
-        for (CartaoPonto cartao : cartoes) {
+        for (CartaoPonto cartao : getCartoes()) {
             LocalDate dataCartao = parseData(cartao.getData());
             if (!dataCartao.isBefore(inicio) && !dataCartao.isAfter(fim)) {
                 double h = cartao.getHoras();
@@ -83,7 +82,14 @@ public class Horista extends Empregado {
     @Override
     public boolean ehDiaDePagamento(String data) {
         LocalDate d = parseData(data);
-        return d.getDayOfWeek() == DayOfWeek.FRIDAY;
+        if (getAgendaPagamento() == null) {
+            return d.getDayOfWeek() == DayOfWeek.FRIDAY;
+        }
+        try {
+            return AgendaPagamento.parse(getAgendaPagamento()).ehDiaDePagamento(d);
+        } catch (DescricaoDeAgendaInvalidaException e) {
+            return d.getDayOfWeek() == DayOfWeek.FRIDAY;
+        }
     }
 
     @Override
@@ -99,39 +105,10 @@ public class Horista extends Empregado {
     }
 
     @Override
-    public double calcularSalarioLiquido(String dataStr) {
-        LocalDate dataFim = parseData(dataStr);
-        LocalDate dataInicio = getUltimaDataPagamento().plusDays(1);
-        long diasDecorridos = java.time.temporal.ChronoUnit.DAYS.between(getUltimaDataPagamento(), dataFim);
-
-        double bruto = calcularSalarioBruto(dataStr);
-
-        double descontoSindical = 0.0;
-        if (isSindicalizado()) {
-            descontoSindical = getTaxaSindical() * diasDecorridos;
-        }
-
-        double totalTaxasServico = 0.0;
-        for (TaxaServico ts : getTaxasServico()) {
-            LocalDate dataTs = parseData(ts.getData());
-            if (!dataTs.isBefore(dataInicio) && !dataTs.isAfter(dataFim)) {
-                totalTaxasServico += ts.getValor();
-            }
-        }
-
-        return Math.max(0.0, bruto - descontoSindical - totalTaxasServico);
-    }
-    @Override
     public Empregado clonar() {
-        Horista copia = new Horista(getId(), getNome(), getEndereco(), getSalario(), isSindicalizado());
+        Horista copia = new Horista(getId(), getNome(), getEndereco(), getSalario(), false);
         copiarCamposComunsPara(copia);
-        for (CartaoPonto c : this.cartoes) {
-            copia.lancarCartao(c.getData(), c.getHoras());
-        }
         return copia;
-    }
-    public List<CartaoPonto> getCartoes() {
-        return cartoes;
     }
     @Override
     public void validarLancamentoCartao() {
@@ -155,17 +132,17 @@ public class Horista extends Empregado {
     }
 
     @Override
-    public void validarComissao() throws EmpregadoNaoEhComissionado {
-        throw new EmpregadoNaoEhComissionado();
+    public void validarComissao() throws EmpregadoNaoEhComissionadoException {
+        throw new EmpregadoNaoEhComissionadoException();
     }
 
     @Override
-    public double getComissao() throws EmpregadoNaoEhComissionado {
-        throw new EmpregadoNaoEhComissionado();
+    public double getComissao() throws EmpregadoNaoEhComissionadoException {
+        throw new EmpregadoNaoEhComissionadoException();
     }
 
     @Override
-    public void setComissao(double comissao) throws EmpregadoNaoEhComissionado {
-        throw new EmpregadoNaoEhComissionado();
+    public void setComissao(double comissao) throws EmpregadoNaoEhComissionadoException {
+        throw new EmpregadoNaoEhComissionadoException();
     }
 }

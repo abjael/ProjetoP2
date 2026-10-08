@@ -1,5 +1,6 @@
 package br.ufal.ic.p2.wepayu.models;
 
+import br.ufal.ic.p2.wepayu.exception.DescricaoDeAgendaInvalidaException;
 import java.time.LocalDate;
 import java.time.DayOfWeek;
 import java.time.temporal.ChronoUnit;
@@ -8,12 +9,12 @@ import java.util.List;
 
 public class Comissionado extends Empregado {
     private double comissao;
-    private List<Venda> vendas;
 
     public Comissionado(String id, String nome, String endereco, double salario, double comissao, boolean sindicalizado) {
         super(id, nome, endereco, salario, sindicalizado);
+        validarValorNaoNegativo(comissao);
         this.comissao = comissao;
-        this.vendas = new ArrayList<>();
+        setAgendaPagamento(AgendaPagamento.defaultAgenda(TipoEmpregado.COMISSIONADO));
     }
 
     @Override
@@ -25,22 +26,28 @@ public class Comissionado extends Empregado {
 
     @Override
     public void adicionarVenda(String data, double valor) {
-        this.vendas.add(new Venda(data, valor));
+        registrarVenda(data, valor);
     }
 
-    public List<Venda> getVendas() { return vendas; }
     @Override
-    public void setComissao(double comissao) { this.comissao = comissao; }
+    public void setComissao(double comissao) {
+        validarValorNaoNegativo(comissao);
+        this.comissao = comissao;
+    }
 
     @Override
     public boolean ehDiaDePagamento(String data) {
         LocalDate d = parseData(data);
-        if (d.getDayOfWeek() != DayOfWeek.FRIDAY) {
-            return false;
+        try {
+            return AgendaPagamento.parse(getAgendaPagamento()).ehDiaDePagamento(d);
+        } catch (DescricaoDeAgendaInvalidaException e) {
+            if (d.getDayOfWeek() != DayOfWeek.FRIDAY) {
+                return false;
+            }
+            LocalDate referencia = LocalDate.of(2005, 1, 14);
+            long semanas = ChronoUnit.WEEKS.between(referencia, d);
+            return semanas >= 0 && semanas % 2 == 0;
         }
-        LocalDate referencia = LocalDate.of(2005, 1, 14);
-        long semanas = ChronoUnit.WEEKS.between(referencia, d);
-        return semanas >= 0 && semanas % 2 == 0;
     }
 
     @Override
@@ -52,7 +59,7 @@ public class Comissionado extends Empregado {
         double salarioQuinzenal = Math.floor(salarioQuinzenalBruto * 100.0) / 100.0;
 
         double totalVendasPeriodo = 0.0;
-        for (Venda v : vendas) {
+        for (Venda v : getVendas()) {
             LocalDate dataV = parseData(v.getData());
             if (!dataV.isBefore(dataInicio) && !dataV.isAfter(dataFim)) {
                 totalVendasPeriodo += v.getValor();
@@ -65,35 +72,10 @@ public class Comissionado extends Empregado {
     }
 
     @Override
-    public double calcularSalarioLiquido(String dataStr) {
-        LocalDate dataFim = parseData(dataStr);
-        LocalDate dataInicio = getUltimaDataPagamento().plusDays(1);
-        long diasDecorridos = ChronoUnit.DAYS.between(getUltimaDataPagamento(), dataFim);
-
-        double bruto = calcularSalarioBruto(dataStr);
-
-        double descontoSindical = 0.0;
-        if (isSindicalizado()) {
-            descontoSindical = getTaxaSindical() * diasDecorridos;
-        }
-
-        double totalTaxasServico = 0.0;
-        for (TaxaServico ts : getTaxasServico()) {
-            LocalDate dataTs = parseData(ts.getData());
-            if (!dataTs.isBefore(dataInicio) && !dataTs.isAfter(dataFim)) {
-                totalTaxasServico += ts.getValor();
-            }
-        }
-
-        return Math.max(0.0, bruto - descontoSindical - totalTaxasServico);
-    }
-    @Override
     public Empregado clonar() {
-        Comissionado copia = new Comissionado(getId(), getNome(), getEndereco(), getSalario(), getComissao(), isSindicalizado());
+        Comissionado copia = new Comissionado(
+                getId(), getNome(), getEndereco(), getSalario(), getComissao(), false);
         copiarCamposComunsPara(copia);
-        for (Venda v : this.getVendas()) {
-            copia.adicionarVenda(v.getData(), v.getValor());
-        }
         return copia;
     }
     @Override
@@ -108,7 +90,7 @@ public class Comissionado extends Empregado {
             LocalDate inicio, LocalDate fim) {
         double totalVendas = 0.0;
 
-        for (Venda venda : vendas) {
+        for (Venda venda : getVendas()) {
             LocalDate dataVenda = parseData(venda.getData());
             if (!dataVenda.isBefore(inicio) && dataVenda.isBefore(fim)) {
                 totalVendas += venda.getValor();

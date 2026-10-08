@@ -19,7 +19,7 @@ public class RepositorioFolhas {
     }
 
     public Map<String, String> listarTodas() {
-        return folhas;
+        return Map.copyOf(folhas);
     }
 
     public void limpar() {

@@ -1,6 +1,6 @@
-package br.ufal.ic.p2.wepayu.Exception;
+package br.ufal.ic.p2.wepayu.exception;
 
-public class AtributoNaoExisteException extends Exception {
+public class AtributoNaoExisteException extends ErroWePayUException {
     public AtributoNaoExisteException() {
         super("Atributo nao existe.");
     }

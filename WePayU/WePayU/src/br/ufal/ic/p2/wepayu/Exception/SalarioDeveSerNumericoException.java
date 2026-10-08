@@ -1,6 +1,6 @@
-package br.ufal.ic.p2.wepayu.Exception;
+package br.ufal.ic.p2.wepayu.exception;
 
-public class SalarioDeveSerNumericoException extends Exception {
+public class SalarioDeveSerNumericoException extends ErroWePayUException {
     public SalarioDeveSerNumericoException() {
         super("Salario deve ser numerico.");
     }

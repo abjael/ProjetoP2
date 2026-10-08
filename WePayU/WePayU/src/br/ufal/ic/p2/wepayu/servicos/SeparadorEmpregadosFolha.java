@@ -29,14 +29,14 @@ public class SeparadorEmpregadosFolha implements VisitanteEmpregado {
     }
 
     public List<Horista> getHoristas() {
-        return horistas;
+        return List.copyOf(horistas);
     }
 
     public List<Assalariado> getAssalariados() {
-        return assalariados;
+        return List.copyOf(assalariados);
     }
 
     public List<Comissionado> getComissionados() {
-        return comissionados;
+        return List.copyOf(comissionados);
     }
 }

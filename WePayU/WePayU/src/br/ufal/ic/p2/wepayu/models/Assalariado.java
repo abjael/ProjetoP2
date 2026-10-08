@@ -1,20 +1,25 @@
 package br.ufal.ic.p2.wepayu.models;
 
-import br.ufal.ic.p2.wepayu.Exception.EmpregadoNaoEhComissionado;
+import br.ufal.ic.p2.wepayu.exception.DescricaoDeAgendaInvalidaException;
+import br.ufal.ic.p2.wepayu.exception.EmpregadoNaoEhComissionadoException;
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 
 public class Assalariado extends Empregado {
 
     public Assalariado(String id, String nome, String endereco, double salario, boolean sindicalizado) {
         super(id, nome, endereco, salario, sindicalizado);
+        setAgendaPagamento(AgendaPagamento.defaultAgenda(TipoEmpregado.ASSALARIADO));
     }
 
     @Override
     public boolean ehDiaDePagamento(String data) {
         LocalDate d = parseData(data);
-        LocalDate ultimoDiaMes = d.withDayOfMonth(d.lengthOfMonth());
-        return d.equals(ultimoDiaMes);
+        try {
+            return AgendaPagamento.parse(getAgendaPagamento()).ehDiaDePagamento(d);
+        } catch (DescricaoDeAgendaInvalidaException e) {
+            LocalDate ultimoDiaMes = d.withDayOfMonth(d.lengthOfMonth());
+            return d.equals(ultimoDiaMes);
+        }
     }
 
     @Override
@@ -23,31 +28,8 @@ public class Assalariado extends Empregado {
     }
 
     @Override
-    public double calcularSalarioLiquido(String dataStr) {
-        LocalDate dataFim = parseData(dataStr);
-        LocalDate dataInicio = getUltimaDataPagamento().plusDays(1);
-        long diasDecorridos = ChronoUnit.DAYS.between(getUltimaDataPagamento(), dataFim);
-
-        double bruto = getSalario();
-
-        double descontoSindical = 0.0;
-        if (isSindicalizado()) {
-            descontoSindical = getTaxaSindical() * diasDecorridos;
-        }
-
-        double totalTaxasServico = 0.0;
-        for (TaxaServico ts : getTaxasServico()) {
-            LocalDate dataTs = parseData(ts.getData());
-            if (!dataTs.isBefore(dataInicio) && !dataTs.isAfter(dataFim)) {
-                totalTaxasServico += ts.getValor();
-            }
-        }
-
-        return Math.max(0.0, bruto - descontoSindical - totalTaxasServico);
-    }
-    @Override
     public Empregado clonar() {
-        Assalariado copia = new Assalariado(getId(), getNome(), getEndereco(), getSalario(), isSindicalizado());
+        Assalariado copia = new Assalariado(getId(), getNome(), getEndereco(), getSalario(), false);
         copiarCamposComunsPara(copia);
         return copia;
     }
@@ -67,17 +49,17 @@ public class Assalariado extends Empregado {
     }
 
     @Override
-    public void validarComissao() throws EmpregadoNaoEhComissionado {
-        throw new EmpregadoNaoEhComissionado();
+    public void validarComissao() throws EmpregadoNaoEhComissionadoException {
+        throw new EmpregadoNaoEhComissionadoException();
     }
 
     @Override
-    public double getComissao() throws EmpregadoNaoEhComissionado {
-        throw new EmpregadoNaoEhComissionado();
+    public double getComissao() throws EmpregadoNaoEhComissionadoException {
+        throw new EmpregadoNaoEhComissionadoException();
     }
 
     @Override
-    public void setComissao(double comissao) throws EmpregadoNaoEhComissionado {
-        throw new EmpregadoNaoEhComissionado();
+    public void setComissao(double comissao) throws EmpregadoNaoEhComissionadoException {
+        throw new EmpregadoNaoEhComissionadoException();
     }
 }

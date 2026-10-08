@@ -12,7 +12,7 @@ public class RepositorioEmpregados {
     }
 
     public List<Empregado> listarTodos() {
-        return empregados;
+        return List.copyOf(empregados);
     }
 
     public void adicionar(Empregado empregado) {
@@ -22,6 +22,15 @@ public class RepositorioEmpregados {
     public Empregado buscarPorId(String id) {
         for (Empregado empregado : empregados) {
             if (empregado.getId().equals(id)) {
+                return empregado;
+            }
+        }
+        return null;
+    }
+
+    public Empregado buscarPorIdSindicato(String idSindicato) {
+        for (Empregado empregado : empregados) {
+            if (idSindicato.equals(empregado.getIdSindicato())) {
                 return empregado;
             }
         }

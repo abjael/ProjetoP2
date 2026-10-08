@@ -1,6 +1,6 @@
-package br.ufal.ic.p2.wepayu.Exception;
+package br.ufal.ic.p2.wepayu.exception;
 
-public class DataFinalInvalidaException extends Exception {
+public class DataFinalInvalidaException extends ErroWePayUException {
     public DataFinalInvalidaException() {
         super("Data final invalida.");
     }

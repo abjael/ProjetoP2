@@ -1,6 +1,6 @@
-package br.ufal.ic.p2.wepayu.Exception;
+package br.ufal.ic.p2.wepayu.exception;
 
-public class SalarioDeveSerNaoNegativoException extends Exception {
+public class SalarioDeveSerNaoNegativoException extends ErroWePayUException {
     public SalarioDeveSerNaoNegativoException() {
         super("Salario deve ser nao-negativo.");
     }

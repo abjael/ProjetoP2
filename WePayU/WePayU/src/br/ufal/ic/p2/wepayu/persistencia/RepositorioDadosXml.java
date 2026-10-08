@@ -1,5 +1,5 @@
 package br.ufal.ic.p2.wepayu.persistencia;
-import br.ufal.ic.p2.wepayu.Exception.*;
+import br.ufal.ic.p2.wepayu.exception.*;
 import br.ufal.ic.p2.wepayu.models.*;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -20,7 +20,7 @@ public class RepositorioDadosXml {
         pai.appendChild(elemento);
     }
 
-    public void salvarDados(List<Empregado> empregados, Map<String, String> folhasGeradas) throws Exception {
+    public void salvarDados(List<Empregado> empregados, Map<String, String> folhasGeradas) throws ErroWePayUException {
         try {
             org.w3c.dom.Document documento =
                     javax.xml.parsers.DocumentBuilderFactory.newInstance()
@@ -57,6 +57,15 @@ public class RepositorioDadosXml {
                         emp.getContaCorrente());
                 adicionarTexto(documento, empregadoXml, "ultimaDataPagamento",
                         emp.getUltimaDataPagamento().toString());
+                adicionarTexto(documento, empregadoXml, "dataPagamentoAnterior",
+                        emp.getDataPagamentoAnterior() == null
+                                ? "" : emp.getDataPagamentoAnterior().toString());
+                adicionarTexto(documento, empregadoXml, "dividaDescontos",
+                        Double.toString(emp.getDividaDescontos()));
+                adicionarTexto(documento, empregadoXml, "dividaDescontosAnterior",
+                        Double.toString(emp.getDividaDescontosAnterior()));
+                adicionarTexto(documento, empregadoXml, "agendaPagamento",
+                        emp.getAgendaPagamento());
 
                 org.w3c.dom.Element taxasXml = documento.createElement("taxasServico");
                 empregadoXml.appendChild(taxasXml);
@@ -90,8 +99,10 @@ public class RepositorioDadosXml {
                     new javax.xml.transform.dom.DOMSource(documento),
                     new javax.xml.transform.stream.StreamResult(ARQUIVO_DADOS.toFile()));
 
-        } catch (Exception e) {
-            throw new ErroAoSalvarDadosException();
+        } catch (javax.xml.parsers.ParserConfigurationException
+                 | javax.xml.transform.TransformerException
+                 | RuntimeException e) {
+            throw new ErroAoSalvarDadosException(e);
         }
     }
     private static String lerTexto(
@@ -116,7 +127,7 @@ public class RepositorioDadosXml {
 
     public void carregarDados(
             List<Empregado> empregados,
-            Map<String, String> folhasGeradas) throws Exception {
+            Map<String, String> folhasGeradas) throws ErroWePayUException {
         if (!java.nio.file.Files.exists(ARQUIVO_DADOS)) {
             return;
         }
@@ -144,7 +155,11 @@ public class RepositorioDadosXml {
                 String nome = lerTexto(elemento, "nome");
                 String endereco = lerTexto(elemento, "endereco");
                 double salario = Double.parseDouble(lerTexto(elemento, "salario"));
-                String sindicalizado = lerTexto(elemento, "sindicalizado");
+                boolean sindicalizado =
+                        Boolean.parseBoolean(lerTexto(elemento, "sindicalizado"));
+                String idSindicato = lerTexto(elemento, "idSindicato");
+                double taxaSindical = Double.parseDouble(
+                        lerTexto(elemento, "taxaSindical"));
 
                 TipoEmpregado tipo;
                 try {
@@ -155,23 +170,20 @@ public class RepositorioDadosXml {
 
                 Empregado emp = switch (tipo) {
                     case HORISTA -> new Horista(
-                            id, nome, endereco, salario,
-                            Boolean.parseBoolean(sindicalizado));
+                            id, nome, endereco, salario, false);
                     case ASSALARIADO -> new Assalariado(
-                            id, nome, endereco, salario,
-                            Boolean.parseBoolean(sindicalizado));
+                            id, nome, endereco, salario, false);
                     case COMISSIONADO -> {
                         double comissao = Double.parseDouble(
                                 lerTexto(elemento, "comissao"));
                         yield new Comissionado(
-                                id, nome, endereco, salario, comissao,
-                                Boolean.parseBoolean(sindicalizado));
+                                id, nome, endereco, salario, comissao, false);
                     }
                 };
 
-                emp.setIdSindicato(lerTexto(elemento, "idSindicato"));
-                emp.setTaxaSindical(
-                        Double.parseDouble(lerTexto(elemento, "taxaSindical")));
+                if (sindicalizado) {
+                    emp.sindicalizar(idSindicato, taxaSindical);
+                }
                 emp.setMetodoPagamento(lerTexto(elemento, "metodoPagamento"));
                 emp.setBanco(lerTexto(elemento, "banco"));
                 emp.setAgencia(lerTexto(elemento, "agencia"));
@@ -179,6 +191,28 @@ public class RepositorioDadosXml {
                 emp.setUltimaDataPagamento(
                         java.time.LocalDate.parse(
                                 lerTexto(elemento, "ultimaDataPagamento")));
+                String dataPagamentoAnterior =
+                        lerTexto(elemento, "dataPagamentoAnterior");
+                if (!dataPagamentoAnterior.isEmpty()) {
+                    emp.setDataPagamentoAnterior(
+                            java.time.LocalDate.parse(dataPagamentoAnterior));
+                }
+                String dividaDescontos = lerTexto(elemento, "dividaDescontos");
+                if (!dividaDescontos.isEmpty()) {
+                    emp.setDividaDescontos(Double.parseDouble(dividaDescontos));
+                }
+                String dividaDescontosAnterior =
+                        lerTexto(elemento, "dividaDescontosAnterior");
+                if (!dividaDescontosAnterior.isEmpty()) {
+                    emp.setDividaDescontosAnterior(
+                            Double.parseDouble(dividaDescontosAnterior));
+                }
+                String agendaPagamento = lerTexto(elemento, "agendaPagamento");
+                if (!agendaPagamento.isEmpty()) {
+                    emp.setAgendaPagamento(agendaPagamento);
+                } else {
+                    emp.setAgendaPagamento(AgendaPagamento.defaultAgenda(tipo));
+                }
 
                 org.w3c.dom.Element taxasXml =
                         primeiroFilho(elemento, "taxasServico");
@@ -216,8 +250,11 @@ public class RepositorioDadosXml {
 
         } catch (TipoDeEmpregadoPersistidoInvalidoException e) {
             throw e;
-        } catch (Exception e) {
-            throw new ErroAoCarregarDadosException();
+        } catch (javax.xml.parsers.ParserConfigurationException
+                 | org.xml.sax.SAXException
+                 | java.io.IOException
+                 | RuntimeException e) {
+            throw new ErroAoCarregarDadosException(e);
         }
     }
 
@@ -234,30 +271,36 @@ public class RepositorioDadosXml {
 
         @Override
         public void visitar(Horista horista) {
-            org.w3c.dom.Element cartoesXml = documento.createElement("cartoes");
-            empregadoXml.appendChild(cartoesXml);
-
-            for (CartaoPonto cartao : horista.getCartoes()) {
-                org.w3c.dom.Element cartaoXml = documento.createElement("cartao");
-                cartaoXml.setAttribute("data", cartao.getData());
-                cartaoXml.setAttribute("horas", Double.toString(cartao.getHoras()));
-                cartoesXml.appendChild(cartaoXml);
-            }
+            adicionarRegistros(horista);
         }
 
         @Override
         public void visitar(Assalariado assalariado) {
+            adicionarRegistros(assalariado);
         }
 
         @Override
         public void visitar(Comissionado comissionado) {
             adicionarTexto(documento, empregadoXml, "comissao",
                     Double.toString(comissionado.getComissao()));
+            adicionarRegistros(comissionado);
+        }
+
+        private void adicionarRegistros(Empregado empregado) {
+            org.w3c.dom.Element cartoesXml = documento.createElement("cartoes");
+            empregadoXml.appendChild(cartoesXml);
+
+            for (CartaoPonto cartao : empregado.getCartoes()) {
+                org.w3c.dom.Element cartaoXml = documento.createElement("cartao");
+                cartaoXml.setAttribute("data", cartao.getData());
+                cartaoXml.setAttribute("horas", Double.toString(cartao.getHoras()));
+                cartoesXml.appendChild(cartaoXml);
+            }
 
             org.w3c.dom.Element vendasXml = documento.createElement("vendas");
             empregadoXml.appendChild(vendasXml);
 
-            for (Venda venda : comissionado.getVendas()) {
+            for (Venda venda : empregado.getVendas()) {
                 org.w3c.dom.Element vendaXml = documento.createElement("venda");
                 vendaXml.setAttribute("data", venda.getData());
                 vendaXml.setAttribute("valor", Double.toString(venda.getValor()));
@@ -275,46 +318,47 @@ public class RepositorioDadosXml {
 
         @Override
         public void visitar(Horista horista) {
-            org.w3c.dom.Element cartoesXml =
-                    primeiroFilho(empregadoXml, "cartoes");
-            if (cartoesXml == null) {
-                return;
-            }
-
-            org.w3c.dom.NodeList cartoes =
-                    cartoesXml.getElementsByTagName("cartao");
-            for (int i = 0; i < cartoes.getLength(); i++) {
-                org.w3c.dom.Element cartao =
-                        (org.w3c.dom.Element) cartoes.item(i);
-                horista.lancarCartao(
-                        cartao.getAttribute("data"),
-                        Double.parseDouble(cartao.getAttribute("horas")));
-            }
+            lerRegistros(horista);
         }
 
         @Override
         public void visitar(Assalariado assalariado) {
+            lerRegistros(assalariado);
         }
 
         @Override
         public void visitar(Comissionado comissionado) {
-            org.w3c.dom.Element vendasXml =
-                    primeiroFilho(empregadoXml, "vendas");
-            if (vendasXml == null) {
-                return;
+            lerRegistros(comissionado);
+        }
+
+        private void lerRegistros(Empregado empregado) {
+            org.w3c.dom.Element cartoesXml =
+                    primeiroFilho(empregadoXml, "cartoes");
+            if (cartoesXml != null) {
+                org.w3c.dom.NodeList cartoes =
+                        cartoesXml.getElementsByTagName("cartao");
+                for (int i = 0; i < cartoes.getLength(); i++) {
+                    org.w3c.dom.Element cartao =
+                            (org.w3c.dom.Element) cartoes.item(i);
+                    empregado.carregarCartaoPersistido(
+                            cartao.getAttribute("data"),
+                            Double.parseDouble(cartao.getAttribute("horas")));
+                }
             }
 
-            org.w3c.dom.NodeList vendas =
-                    vendasXml.getElementsByTagName("venda");
-            for (int i = 0; i < vendas.getLength(); i++) {
-                org.w3c.dom.Element venda =
-                        (org.w3c.dom.Element) vendas.item(i);
-                comissionado.adicionarVenda(
-                        venda.getAttribute("data"),
-                        Double.parseDouble(venda.getAttribute("valor")));
+            org.w3c.dom.Element vendasXml =
+                    primeiroFilho(empregadoXml, "vendas");
+            if (vendasXml != null) {
+                org.w3c.dom.NodeList vendas =
+                        vendasXml.getElementsByTagName("venda");
+                for (int i = 0; i < vendas.getLength(); i++) {
+                    org.w3c.dom.Element venda =
+                            (org.w3c.dom.Element) vendas.item(i);
+                    empregado.carregarVendaPersistida(
+                            venda.getAttribute("data"),
+                            Double.parseDouble(venda.getAttribute("valor")));
+                }
             }
         }
     }
 }
-
-

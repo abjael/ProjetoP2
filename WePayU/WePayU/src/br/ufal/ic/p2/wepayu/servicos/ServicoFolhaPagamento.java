@@ -1,9 +1,10 @@
 package br.ufal.ic.p2.wepayu.servicos;
 
-import br.ufal.ic.p2.wepayu.Exception.*;
+import br.ufal.ic.p2.wepayu.exception.*;
 import br.ufal.ic.p2.wepayu.models.*;
 import br.ufal.ic.p2.wepayu.repositorio.RepositorioEmpregados;
 import br.ufal.ic.p2.wepayu.repositorio.RepositorioFolhas;
+import br.ufal.ic.p2.wepayu.util.ValidadorData;
 
 public class ServicoFolhaPagamento {
     private final RepositorioEmpregados repositorioEmpregados;
@@ -15,230 +16,232 @@ public class ServicoFolhaPagamento {
         this.repositorioEmpregados = repositorioEmpregados;
         this.repositorioFolhas = repositorioFolhas;
     }
-    public boolean rodaFolha(String data, String saida) throws Exception {
-
-
-        if (repositorioFolhas.contem(data)) {
-            try (java.io.PrintWriter writer = new java.io.PrintWriter(saida)) {
-                writer.print(repositorioFolhas.buscar(data));
-            } catch (Exception e) {
-                throw new ErroAoGerarArquivoDeFolha();
-            }
-            return false;
-        }
+    public boolean rodaFolha(String data, String saida) throws ErroWePayUException {
         validarData(data);
         if (saida == null || saida.isEmpty()) {
-            throw new ArquivoDeSaidaNaoPodeSerNulo();
+            throw new ArquivoDeSaidaNaoPodeSerNuloException();
         }
 
-
-
+        String relatorioAnterior = repositorioFolhas.buscar(data);
         java.time.LocalDate dataObj = parseData(data);
-        String dataFormatada = dataObj.toString();
-
-        StringBuilder conteudo = new StringBuilder();
-        conteudo.append("FOLHA DE PAGAMENTO DO DIA ").append(dataFormatada).append("\n");
-        conteudo.append("====================================\n");
-        conteudo.append("\n");
-
-        double totalFolhaGeral = 0.0;
-
-
-        SeparadorEmpregadosFolha separador = new SeparadorEmpregadosFolha();
-        for (Empregado emp : repositorioEmpregados.listarTodos()) {
-            emp.aceitar(separador);
-        }
-        java.util.List<Horista> horistasOrdenados = separador.getHoristas();
-        java.util.List<Assalariado> assalariadosOrdenados = separador.getAssalariados();
-        java.util.List<Comissionado> comissionadosOrdenados = separador.getComissionados();
-        horistasOrdenados.sort(java.util.Comparator.comparing(Horista::getNome));
-        assalariadosOrdenados.sort(java.util.Comparator.comparing(Assalariado::getNome));
-        comissionadosOrdenados.sort(java.util.Comparator.comparing(Comissionado::getNome));
-        conteudo.append("===============================================================================================================================\n");
-        conteudo.append("===================== HORISTAS ================================================================================================\n");
-        conteudo.append("===============================================================================================================================\n");
-        conteudo.append("Nome                                 Horas Extra Salario Bruto Descontos Salario Liquido Metodo\n");
-        conteudo.append("==================================== ===== ===== ============= ========= =============== ======================================\n");
-
-        double totalHoras = 0.0;
-        double totalExtras = 0.0;
-        double totalBrutoHoristas = 0.0;
-        double totalDescontosHoristas = 0.0;
-        double totalLiquidoHoristas = 0.0;
-
-        for (Horista emp : horistasOrdenados) {
-            if (emp.ehDiaDePagamento(data)) {
-                if (emp.getUltimaDataPagamento() != null && emp.getUltimaDataPagamento().equals(dataObj)) {
-                    continue;
-                }
-
-                java.time.LocalDate dataInicio = emp.getUltimaDataPagamento().plusDays(1);
-                String dataInicial = String.format("%02d/%02d/%d", dataInicio.getDayOfMonth(), dataInicio.getMonthValue(), dataInicio.getYear());
-
-                double horas = emp.getHorasNormais(dataInicial, data);
-                double extras = emp.getHorasExtras(dataInicial, data);
-                double bruto = emp.calcularSalarioBruto(data);
-                double liquido = emp.calcularSalarioLiquido(data);
-                double descontos = bruto - liquido;
-
-                totalHoras += horas;
-                totalExtras += extras;
-                totalBrutoHoristas += bruto;
-                totalDescontosHoristas += descontos;
-                totalLiquidoHoristas += liquido;
-                totalFolhaGeral += bruto;
-
-                String metodo = formatarMetodoPagamento(emp);
-
-
-                String linhaNumeros = String.format(
-                        "%-36s %5.0f %5.0f %13.2f %9.2f %15.2f ",
-                        emp.getNome(), horas, extras, bruto, descontos, liquido
-                ).replace(".", ",");
-                conteudo.append(linhaNumeros).append(metodo).append("\n");
-
-                if (bruto > 0) {
-                    emp.setUltimaDataPagamento(dataObj);
-                }
+        java.util.List<Empregado> empregadosProcessados = new java.util.ArrayList<>();
+        for (Empregado empregado : repositorioEmpregados.listarTodos()) {
+            Empregado copia = empregado.clonar();
+            if (repositorioFolhas.contem(data)) {
+                copia.reabrirPagamento(dataObj);
             }
+            empregadosProcessados.add(copia);
         }
+        StringBuilder conteudo = new StringBuilder(cabecalho(dataObj));
+        SeparadorEmpregadosFolha separador = separarEmpregados(empregadosProcessados);
+        java.util.List<Horista> horistas = new java.util.ArrayList<>(separador.getHoristas());
+        horistas.sort(java.util.Comparator.comparing(Horista::getNome));
+        java.util.List<Assalariado> assalariados = new java.util.ArrayList<>(separador.getAssalariados());
+        assalariados.sort(java.util.Comparator.comparing(Assalariado::getNome));
+        java.util.List<Comissionado> comissionados = new java.util.ArrayList<>(separador.getComissionados());
+        comissionados.sort(java.util.Comparator.comparing(Comissionado::getNome));
 
-        conteudo.append("\n");
-        conteudo.append(String.format(
-                "TOTAL HORISTAS                       %5.0f %5.0f %13.2f %9.2f %15.2f\n",
-                totalHoras, totalExtras, totalBrutoHoristas, totalDescontosHoristas, totalLiquidoHoristas
-        ).replace(".", ","));
-        conteudo.append("\n");
-        conteudo.append("===============================================================================================================================\n");
-        conteudo.append("===================== ASSALARIADOS ============================================================================================\n");
-        conteudo.append("===============================================================================================================================\n");
-        conteudo.append("Nome                                             Salario Bruto Descontos Salario Liquido Metodo\n");
-        conteudo.append("================================================ ============= ========= =============== ======================================\n");
+        double[] totalGeral = {0.0};
+        escreverHoristas(conteudo, horistas, data, dataObj, totalGeral);
+        escreverAssalariados(conteudo, assalariados, data, dataObj, totalGeral);
+        escreverComissionados(conteudo, comissionados, data, dataObj, totalGeral);
+        conteudo.append("TOTAL FOLHA: ")
+                .append(formatarLinha("%.2f", totalGeral[0])).append("\n");
 
-        double totalBrutoAssalariados = 0.0;
-        double totalDescontosAssalariados = 0.0;
-        double totalLiquidoAssalariados = 0.0;
-
-        for (Assalariado emp : assalariadosOrdenados) {
-            if (emp.ehDiaDePagamento(data)) {
-                if (emp.getUltimaDataPagamento() != null && emp.getUltimaDataPagamento().equals(dataObj)) {
-                    continue;
-                }
-
-                double bruto = emp.calcularSalarioBruto(data);
-                double liquido = emp.calcularSalarioLiquido(data);
-                double descontos = bruto - liquido;
-
-                totalBrutoAssalariados += bruto;
-                totalDescontosAssalariados += descontos;
-                totalLiquidoAssalariados += liquido;
-                totalFolhaGeral += bruto;
-
-                String metodo = formatarMetodoPagamento(emp);
-
-                String linhaNumeros = String.format(
-                        "%-48s %13.2f %9.2f %15.2f ",
-                        emp.getNome(), bruto, descontos, liquido
-                ).replace(".", ",");
-                conteudo.append(linhaNumeros).append(metodo).append("\n");
-
-                emp.setUltimaDataPagamento(dataObj);
-            }
-        }
-
-        conteudo.append("\n");
-        conteudo.append(String.format(
-                "TOTAL ASSALARIADOS                               %13.2f %9.2f %15.2f\n",
-                totalBrutoAssalariados, totalDescontosAssalariados, totalLiquidoAssalariados
-        ).replace(".", ","));
-        conteudo.append("\n");
-        conteudo.append("===============================================================================================================================\n");
-        conteudo.append("===================== COMISSIONADOS ===========================================================================================\n");
-        conteudo.append("===============================================================================================================================\n");
-        conteudo.append("Nome                  Fixo     Vendas   Comissao Salario Bruto Descontos Salario Liquido Metodo\n");
-        conteudo.append("===================== ======== ======== ======== ============= ========= =============== ======================================\n");
-
-        double totalFixo = 0.0;
-        double totalVendas = 0.0;
-        double totalComissao = 0.0;
-        double totalBrutoComissionados = 0.0;
-        double totalDescontosComissionados = 0.0;
-        double totalLiquidoComissionados = 0.0;
-
-        for (Comissionado emp : comissionadosOrdenados) {
-            if (emp.ehDiaDePagamento(data)) {
-                if (emp.getUltimaDataPagamento() != null && emp.getUltimaDataPagamento().equals(dataObj)) {
-                    continue;
-                }
-
-                java.time.LocalDate dataInicio = emp.getUltimaDataPagamento().plusDays(1);
-
-                double vendas = 0.0;
-                for (Venda venda : emp.getVendas()) {
-                    java.time.LocalDate dataVenda = parseData(venda.getData());
-                    if (!dataVenda.isBefore(dataInicio) && !dataVenda.isAfter(dataObj)) {
-                        vendas += venda.getValor();
-                    }
-                }
-
-                double comissao = Math.floor(vendas * emp.getComissao() * 100) / 100.0;
-                double fixo = Math.floor(emp.getSalario() * 12.0 / 52.0 * 2.0 * 100) / 100.0;
-                double bruto = emp.calcularSalarioBruto(data);
-                double liquido = emp.calcularSalarioLiquido(data);
-                double descontos = bruto - liquido;
-
-                totalFixo += fixo;
-                totalVendas += vendas;
-                totalComissao += comissao;
-                totalBrutoComissionados += bruto;
-                totalDescontosComissionados += descontos;
-                totalLiquidoComissionados += liquido;
-                totalFolhaGeral += bruto;
-
-                String metodo = formatarMetodoPagamento(emp);
-
-                String linhaNumeros = String.format(
-                        "%-21s %8.2f %8.2f %8.2f %13.2f %9.2f %15.2f ",
-                        emp.getNome(), fixo, vendas, comissao, bruto, descontos, liquido
-                ).replace(".", ",");
-                conteudo.append(linhaNumeros).append(metodo).append("\n");
-
-                emp.setUltimaDataPagamento(dataObj);
-            }
-        }
-
-        conteudo.append("\n");
-        conteudo.append(String.format(
-                "TOTAL COMISSIONADOS   %8.2f %8.2f %8.2f %13.2f %9.2f %15.2f\n",
-                totalFixo, totalVendas, totalComissao, totalBrutoComissionados, totalDescontosComissionados, totalLiquidoComissionados
-        ).replace(".", ","));
-        conteudo.append("\n");
-
-        conteudo.append("TOTAL FOLHA: ").append(String.format("%.2f", totalFolhaGeral).replace(".", ",")).append("\n");
-
+        escreverArquivo(saida, conteudo.toString());
+        repositorioEmpregados.substituirTodos(empregadosProcessados);
         repositorioFolhas.adicionar(data, conteudo.toString());
+        return !conteudo.toString().equals(relatorioAnterior);
+    }
 
-        try (java.io.PrintWriter writer = new java.io.PrintWriter(saida)) {
-            writer.print(conteudo.toString());
-        } catch (Exception e) {
-            throw new ErroAoGerarArquivoDeFolha();
+    private String cabecalho(java.time.LocalDate data) {
+        return "FOLHA DE PAGAMENTO DO DIA " + data + "\n"
+                + "====================================\n\n";
+    }
+
+    private SeparadorEmpregadosFolha separarEmpregados(
+            java.util.List<Empregado> empregados) {
+        SeparadorEmpregadosFolha separador = new SeparadorEmpregadosFolha();
+        for (Empregado empregado : empregados) {
+            empregado.aceitar(separador);
         }
-        return true;
+        return separador;
+    }
+
+    private void escreverHoristas(StringBuilder conteudo, java.util.List<Horista> empregados,
+                                  String data, java.time.LocalDate dataObj, double[] totalGeral) {
+        conteudo.append("===============================================================================================================================\n")
+                .append("===================== HORISTAS ================================================================================================\n")
+                .append("===============================================================================================================================\n")
+                .append("Nome                                 Horas Extra Salario Bruto Descontos Salario Liquido Metodo\n")
+                .append("==================================== ===== ===== ============= ========= =============== ======================================\n");
+        double horasTotal = 0.0, extrasTotal = 0.0, brutoTotal = 0.0, descontosTotal = 0.0, liquidoTotal = 0.0;
+        for (Horista empregado : empregados) {
+            if (!empregado.ehDiaDePagamento(data) || jaPago(empregado, dataObj)) continue;
+            java.time.LocalDate inicio = empregado.getUltimaDataPagamento().plusDays(1);
+            String dataInicial = String.format("%02d/%02d/%d", inicio.getDayOfMonth(), inicio.getMonthValue(), inicio.getYear());
+            double horas = empregado.getHorasNormais(dataInicial, data);
+            double extras = empregado.getHorasExtras(dataInicial, data);
+            double bruto = empregado.calcularSalarioBruto(data);
+            java.time.LocalDate dataAnterior = empregado.getUltimaDataPagamento();
+            double dividaAnterior = empregado.getDividaDescontos();
+            double liquido = empregado.calcularSalarioLiquido(data);
+            double descontos = bruto - liquido;
+            horasTotal += horas;
+            extrasTotal += extras;
+            brutoTotal += bruto;
+            descontosTotal += descontos;
+            liquidoTotal += liquido;
+            totalGeral[0] += bruto;
+            conteudo.append(formatarLinha(
+                    "%-36s %5.0f %5.0f %13.2f %9.2f %15.2f ",
+                    empregado.getNome(), horas, extras, bruto, descontos, liquido))
+                    .append(formatarMetodoPagamento(empregado)).append("\n");
+            empregado.registrarPagamento(dataObj, dataAnterior, dividaAnterior);
+        }
+        conteudo.append("\n").append(formatarLinha(
+                "TOTAL HORISTAS                       %5.0f %5.0f %13.2f %9.2f %15.2f\n",
+                horasTotal, extrasTotal, brutoTotal, descontosTotal, liquidoTotal))
+                .append("\n");
+    }
+
+    private void escreverAssalariados(StringBuilder conteudo, java.util.List<Assalariado> empregados,
+                                      String data, java.time.LocalDate dataObj, double[] totalGeral) {
+        conteudo.append("===============================================================================================================================\n")
+                .append("===================== ASSALARIADOS ============================================================================================\n")
+                .append("===============================================================================================================================\n")
+                .append("Nome                                             Salario Bruto Descontos Salario Liquido Metodo\n")
+                .append("================================================ ============= ========= =============== ======================================\n");
+        double brutoTotal = 0.0, descontosTotal = 0.0, liquidoTotal = 0.0;
+        for (Assalariado empregado : empregados) {
+            if (!empregado.ehDiaDePagamento(data) || jaPago(empregado, dataObj)) continue;
+            double bruto = empregado.calcularSalarioBruto(data);
+            java.time.LocalDate dataAnterior = empregado.getUltimaDataPagamento();
+            double dividaAnterior = empregado.getDividaDescontos();
+            double liquido = empregado.calcularSalarioLiquido(data);
+            double descontos = bruto - liquido;
+            brutoTotal += bruto;
+            descontosTotal += descontos;
+            liquidoTotal += liquido;
+            totalGeral[0] += bruto;
+            conteudo.append(formatarLinha(
+                    "%-48s %13.2f %9.2f %15.2f ",
+                    empregado.getNome(), bruto, descontos, liquido))
+                    .append(formatarMetodoPagamento(empregado)).append("\n");
+            empregado.registrarPagamento(dataObj, dataAnterior, dividaAnterior);
+        }
+        conteudo.append("\n").append(formatarLinha(
+                "TOTAL ASSALARIADOS                               %13.2f %9.2f %15.2f\n",
+                brutoTotal, descontosTotal, liquidoTotal))
+                .append("\n");
+    }
+
+    private void escreverComissionados(StringBuilder conteudo, java.util.List<Comissionado> empregados,
+                                       String data, java.time.LocalDate dataObj, double[] totalGeral) {
+        conteudo.append("===============================================================================================================================\n")
+                .append("===================== COMISSIONADOS ===========================================================================================\n")
+                .append("===============================================================================================================================\n")
+                .append("Nome                  Fixo     Vendas   Comissao Salario Bruto Descontos Salario Liquido Metodo\n")
+                .append("===================== ======== ======== ======== ============= ========= =============== ======================================\n");
+        double fixoTotal = 0.0, vendasTotal = 0.0, comissaoTotal = 0.0;
+        double brutoTotal = 0.0, descontosTotal = 0.0, liquidoTotal = 0.0;
+        for (Comissionado empregado : empregados) {
+            if (!empregado.ehDiaDePagamento(data) || jaPago(empregado, dataObj)) continue;
+            java.time.LocalDate inicio = empregado.getUltimaDataPagamento().plusDays(1);
+            double vendas = totalVendas(empregado, inicio, dataObj);
+            double comissao = Math.floor(vendas * empregado.getComissao() * 100) / 100.0;
+            double fixo = Math.floor(empregado.getSalario() * 12.0 / 52.0 * 2.0 * 100) / 100.0;
+            double bruto = empregado.calcularSalarioBruto(data);
+            java.time.LocalDate dataAnterior = empregado.getUltimaDataPagamento();
+            double dividaAnterior = empregado.getDividaDescontos();
+            double liquido = empregado.calcularSalarioLiquido(data);
+            double descontos = bruto - liquido;
+            fixoTotal += fixo;
+            vendasTotal += vendas;
+            comissaoTotal += comissao;
+            brutoTotal += bruto;
+            descontosTotal += descontos;
+            liquidoTotal += liquido;
+            totalGeral[0] += bruto;
+            conteudo.append(formatarLinha(
+                    "%-21s %8.2f %8.2f %8.2f %13.2f %9.2f %15.2f ",
+                    empregado.getNome(), fixo, vendas, comissao,
+                    bruto, descontos, liquido))
+                    .append(formatarMetodoPagamento(empregado)).append("\n");
+            empregado.registrarPagamento(dataObj, dataAnterior, dividaAnterior);
+        }
+        conteudo.append("\n").append(formatarLinha(
+                "TOTAL COMISSIONADOS   %8.2f %8.2f %8.2f %13.2f %9.2f %15.2f\n",
+                fixoTotal, vendasTotal, comissaoTotal,
+                brutoTotal, descontosTotal, liquidoTotal))
+                .append("\n");
+    }
+
+    private boolean jaPago(Empregado empregado, java.time.LocalDate data) {
+        return empregado.getUltimaDataPagamento() != null && empregado.getUltimaDataPagamento().equals(data);
+    }
+
+    private double totalVendas(Comissionado empregado, java.time.LocalDate inicio, java.time.LocalDate fim) {
+        double total = 0.0;
+        for (Venda venda : empregado.getVendas()) {
+            java.time.LocalDate dataVenda = parseData(venda.getData());
+            if (!dataVenda.isBefore(inicio) && !dataVenda.isAfter(fim)) total += venda.getValor();
+        }
+        return total;
+    }
+
+    private void escreverArquivo(String saida, String conteudo)
+            throws ErroAoGerarArquivoDeFolhaException {
+        java.nio.file.Path temporario = null;
+        try {
+            java.nio.file.Path arquivo = java.nio.file.Paths.get(saida).toAbsolutePath();
+            java.nio.file.Path diretorio = arquivo.getParent();
+            String prefixo = arquivo.getFileName().toString();
+            if (prefixo.length() < 3) {
+                prefixo = (prefixo + "___").substring(0, 3);
+            }
+            temporario = java.nio.file.Files.createTempFile(
+                    diretorio, prefixo, ".tmp");
+            java.nio.file.Files.writeString(temporario, conteudo);
+            try {
+                java.nio.file.Files.move(
+                        temporario, arquivo,
+                        java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+                java.nio.file.Files.move(
+                        temporario, arquivo,
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (java.io.IOException
+                 | java.nio.file.InvalidPathException
+                 | SecurityException e) {
+            if (temporario != null) {
+                try {
+                    java.nio.file.Files.deleteIfExists(temporario);
+                } catch (java.io.IOException | SecurityException cleanupException) {
+                    e.addSuppressed(cleanupException);
+                }
+            }
+            throw new ErroAoGerarArquivoDeFolhaException(e);
+        }
     }
 
     private String formatarMetodoPagamento(Empregado emp) {
-        String metodo = emp.getMetodoPagamento();
-        if (metodo == null || metodo.equalsIgnoreCase("emMaos") || metodo.equalsIgnoreCase("em maos")) {
-            return "Em maos";
-        } else if (metodo.equalsIgnoreCase("correios")) {
-            return "Correios, " + emp.getEndereco();
-        } else if (metodo.equalsIgnoreCase("banco")) {
-            return String.format("%s, Ag. %s CC %s", emp.getBanco(), emp.getAgencia(), emp.getContaCorrente());
-        }
-        return metodo;
+        return switch (emp.getTipoMetodoPagamento()) {
+            case EM_MAOS -> "Em maos";
+            case CORREIOS -> "Correios, " + emp.getEndereco();
+            case BANCO -> String.format(
+                    "%s, Ag. %s CC %s",
+                    emp.getBanco(), emp.getAgencia(), emp.getContaCorrente());
+        };
     }
 
-    public String totalFolha(String data) throws Exception {
+    private String formatarLinha(String formato, Object... valores) {
+        return String.format(formato, valores).replace(".", ",");
+    }
+
+    public String totalFolha(String data) throws ErroWePayUException {
         validarData(data);
         double totalGeral = 0.0;
         for (Empregado emp : repositorioEmpregados.listarTodos()) {
@@ -246,32 +249,14 @@ public class ServicoFolhaPagamento {
                 totalGeral += emp.calcularSalarioBruto(data);
             }
         }
-        return String.format("%.2f", totalGeral).replace(".", ",");
+        return formatarLinha("%.2f", totalGeral);
     }
 
-    private void validarData(String data) throws Exception {
-        if (data == null || data.isEmpty()) {
-            throw new DataNaoPodeSerNulaException();
-        }
-        String[] partes = data.split("/");
-        if (partes.length != 3) {
-            throw new DataInvalidaException();
-        }
-        try {
-            int dia = Integer.parseInt(partes[0]);
-            int mes = Integer.parseInt(partes[1]);
-            int ano = Integer.parseInt(partes[2]);
-            java.time.LocalDate.of(ano, mes, dia);
-        } catch (Exception e) {
-            throw new DataInvalidaException();
-        }
+    private void validarData(String data) throws ErroWePayUException {
+        ValidadorData.validar(data);
     }
 
     private java.time.LocalDate parseData(String data) {
-        String[] partes = data.split("/");
-        int dia = Integer.parseInt(partes[0]);
-        int mes = Integer.parseInt(partes[1]);
-        int ano = Integer.parseInt(partes[2]);
-        return java.time.LocalDate.of(ano, mes, dia);
+        return ValidadorData.parse(data);
     }
 }
