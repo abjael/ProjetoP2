@@ -1,5 +1,6 @@
 package br.ufal.ic.p2.wepayu.models;
 
+import br.ufal.ic.p2.wepayu.Exception.EmpregadoNaoEhComissionado;
 import java.time.LocalDate;
 import java.time.DayOfWeek;
 import java.util.ArrayList;
@@ -8,15 +9,16 @@ import java.util.List;
 public class Horista extends Empregado {
     private List<CartaoPonto> cartoes;
 
-    public Horista(String id, String nome, String endereco, String tipo, double salario, String sindicalizado) {
-        super(id, nome, endereco, tipo, salario, sindicalizado);
+    public Horista(String id, String nome, String endereco, double salario, boolean sindicalizado) {
+        super(id, nome, endereco, salario, sindicalizado);
         this.cartoes = new ArrayList<>();
     }
 
+    @Override
     public void lancarCartao(String data, double horas) {
         this.cartoes.add(new CartaoPonto(data, horas));
     }
-
+    @Override
     public double getHorasNormais(String dataInicial, String dataFinal) {
         LocalDate inicio = parseData(dataInicial);
         LocalDate fim = parseData(dataFinal);
@@ -32,7 +34,7 @@ public class Horista extends Empregado {
         return total;
     }
 
-
+    @Override
     public double getHorasExtras(String dataInicial, String dataFinal) {
         LocalDate inicio = parseData(dataInicial);
         LocalDate fim = parseData(dataFinal);
@@ -62,6 +64,7 @@ public class Horista extends Empregado {
         }
         return total;
     }
+
 
     private double getHorasExtrasInclusivo(LocalDate inicio, LocalDate fim) {
         double total = 0.0;
@@ -104,7 +107,7 @@ public class Horista extends Empregado {
         double bruto = calcularSalarioBruto(dataStr);
 
         double descontoSindical = 0.0;
-        if ("true".equals(getSindicalizado())) {
+        if (isSindicalizado()) {
             descontoSindical = getTaxaSindical() * diasDecorridos;
         }
 
@@ -120,7 +123,7 @@ public class Horista extends Empregado {
     }
     @Override
     public Empregado clonar() {
-        Horista copia = new Horista(getId(), getNome(), getEndereco(), getTipo(), getSalario(), getSindicalizado());
+        Horista copia = new Horista(getId(), getNome(), getEndereco(), getSalario(), isSindicalizado());
         copiarCamposComunsPara(copia);
         for (CartaoPonto c : this.cartoes) {
             copia.lancarCartao(c.getData(), c.getHoras());
@@ -129,5 +132,40 @@ public class Horista extends Empregado {
     }
     public List<CartaoPonto> getCartoes() {
         return cartoes;
+    }
+    @Override
+    public void validarLancamentoCartao() {
+    }
+    @Override
+    public void validarConsultaHoras() {
+    }
+    @Override
+    public void aceitar(VisitanteEmpregado visitante) {
+        visitante.visitar(this);
+    }
+
+    @Override
+    public void aceitar(VisitanteDadosEmpregado visitante) {
+        visitante.visitar(this);
+    }
+
+    @Override
+    public TipoEmpregado getTipo() {
+        return TipoEmpregado.HORISTA;
+    }
+
+    @Override
+    public void validarComissao() throws EmpregadoNaoEhComissionado {
+        throw new EmpregadoNaoEhComissionado();
+    }
+
+    @Override
+    public double getComissao() throws EmpregadoNaoEhComissionado {
+        throw new EmpregadoNaoEhComissionado();
+    }
+
+    @Override
+    public void setComissao(double comissao) throws EmpregadoNaoEhComissionado {
+        throw new EmpregadoNaoEhComissionado();
     }
 }

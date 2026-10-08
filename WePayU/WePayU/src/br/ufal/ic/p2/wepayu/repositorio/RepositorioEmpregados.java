@@ -2,13 +2,13 @@ package br.ufal.ic.p2.wepayu.repositorio;
 
 import br.ufal.ic.p2.wepayu.models.Empregado;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class RepositorioEmpregados {
-    private final List<Empregado> empregados;
+    private final List<Empregado> empregados = new ArrayList<>();
 
-    public RepositorioEmpregados(List<Empregado> empregados) {
-        this.empregados = empregados;
+    public RepositorioEmpregados() {
     }
 
     public List<Empregado> listarTodos() {

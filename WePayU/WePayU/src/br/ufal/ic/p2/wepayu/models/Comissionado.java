@@ -10,20 +10,26 @@ public class Comissionado extends Empregado {
     private double comissao;
     private List<Venda> vendas;
 
-    public Comissionado(String id, String nome, String endereco, String tipo, double salario, double comissao, String sindicalizado) {
-        super(id, nome, endereco, tipo, salario, sindicalizado);
+    public Comissionado(String id, String nome, String endereco, double salario, double comissao, boolean sindicalizado) {
+        super(id, nome, endereco, salario, sindicalizado);
         this.comissao = comissao;
         this.vendas = new ArrayList<>();
     }
 
     @Override
+    public void validarComissao() {
+    }
+
+    @Override
     public double getComissao() { return comissao; }
 
+    @Override
     public void adicionarVenda(String data, double valor) {
         this.vendas.add(new Venda(data, valor));
     }
 
     public List<Venda> getVendas() { return vendas; }
+    @Override
     public void setComissao(double comissao) { this.comissao = comissao; }
 
     @Override
@@ -67,7 +73,7 @@ public class Comissionado extends Empregado {
         double bruto = calcularSalarioBruto(dataStr);
 
         double descontoSindical = 0.0;
-        if ("true".equals(getSindicalizado())) {
+        if (isSindicalizado()) {
             descontoSindical = getTaxaSindical() * diasDecorridos;
         }
 
@@ -83,11 +89,46 @@ public class Comissionado extends Empregado {
     }
     @Override
     public Empregado clonar() {
-        Comissionado copia = new Comissionado(getId(), getNome(), getEndereco(), getTipo(), getSalario(), getComissao(), getSindicalizado());
+        Comissionado copia = new Comissionado(getId(), getNome(), getEndereco(), getSalario(), getComissao(), isSindicalizado());
         copiarCamposComunsPara(copia);
         for (Venda v : this.getVendas()) {
             copia.adicionarVenda(v.getData(), v.getValor());
         }
         return copia;
+    }
+    @Override
+    public void validarLancamentoVenda() {
+    }
+    @Override
+    public void validarConsultaVendas() {
+    }
+
+    @Override
+    public double calcularVendasRealizadas(
+            LocalDate inicio, LocalDate fim) {
+        double totalVendas = 0.0;
+
+        for (Venda venda : vendas) {
+            LocalDate dataVenda = parseData(venda.getData());
+            if (!dataVenda.isBefore(inicio) && dataVenda.isBefore(fim)) {
+                totalVendas += venda.getValor();
+            }
+        }
+
+        return totalVendas;
+    }
+    @Override
+    public void aceitar(VisitanteEmpregado visitante) {
+        visitante.visitar(this);
+    }
+
+    @Override
+    public void aceitar(VisitanteDadosEmpregado visitante) {
+        visitante.visitar(this);
+    }
+
+    @Override
+    public TipoEmpregado getTipo() {
+        return TipoEmpregado.COMISSIONADO;
     }
 }

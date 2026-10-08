@@ -1,12 +1,13 @@
 package br.ufal.ic.p2.wepayu.models;
 
+import br.ufal.ic.p2.wepayu.Exception.EmpregadoNaoEhComissionado;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 
 public class Assalariado extends Empregado {
 
-    public Assalariado(String id, String nome, String endereco, String tipo, double salario, String sindicalizado) {
-        super(id, nome, endereco, tipo, salario, sindicalizado);
+    public Assalariado(String id, String nome, String endereco, double salario, boolean sindicalizado) {
+        super(id, nome, endereco, salario, sindicalizado);
     }
 
     @Override
@@ -30,7 +31,7 @@ public class Assalariado extends Empregado {
         double bruto = getSalario();
 
         double descontoSindical = 0.0;
-        if ("true".equals(getSindicalizado())) {
+        if (isSindicalizado()) {
             descontoSindical = getTaxaSindical() * diasDecorridos;
         }
 
@@ -46,8 +47,37 @@ public class Assalariado extends Empregado {
     }
     @Override
     public Empregado clonar() {
-        Assalariado copia = new Assalariado(getId(), getNome(), getEndereco(), getTipo(), getSalario(), getSindicalizado());
+        Assalariado copia = new Assalariado(getId(), getNome(), getEndereco(), getSalario(), isSindicalizado());
         copiarCamposComunsPara(copia);
         return copia;
+    }
+    @Override
+    public void aceitar(VisitanteEmpregado visitante) {
+        visitante.visitar(this);
+    }
+
+    @Override
+    public void aceitar(VisitanteDadosEmpregado visitante) {
+        visitante.visitar(this);
+    }
+
+    @Override
+    public TipoEmpregado getTipo() {
+        return TipoEmpregado.ASSALARIADO;
+    }
+
+    @Override
+    public void validarComissao() throws EmpregadoNaoEhComissionado {
+        throw new EmpregadoNaoEhComissionado();
+    }
+
+    @Override
+    public double getComissao() throws EmpregadoNaoEhComissionado {
+        throw new EmpregadoNaoEhComissionado();
+    }
+
+    @Override
+    public void setComissao(double comissao) throws EmpregadoNaoEhComissionado {
+        throw new EmpregadoNaoEhComissionado();
     }
 }

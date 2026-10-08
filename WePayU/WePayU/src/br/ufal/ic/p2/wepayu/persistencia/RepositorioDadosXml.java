@@ -35,7 +35,7 @@ public class RepositorioDadosXml {
 
             for (Empregado emp : empregados) {
                 org.w3c.dom.Element empregadoXml = documento.createElement("empregado");
-                empregadoXml.setAttribute("tipo", emp.getTipo());
+                empregadoXml.setAttribute("tipo", emp.getTipo().paraTexto());
                 empregadosXml.appendChild(empregadoXml);
 
                 adicionarTexto(documento, empregadoXml, "id", emp.getId());
@@ -67,37 +67,8 @@ public class RepositorioDadosXml {
                     taxasXml.appendChild(taxaXml);
                 }
 
-                if (emp instanceof Horista) {
-                    Horista horista = (Horista) emp;
-                    org.w3c.dom.Element cartoesXml = documento.createElement("cartoes");
-                    empregadoXml.appendChild(cartoesXml);
-
-                    for (br.ufal.ic.p2.wepayu.models.CartaoPonto cartao
-                            : horista.getCartoes()) {
-                        org.w3c.dom.Element cartaoXml = documento.createElement("cartao");
-                        cartaoXml.setAttribute("data", cartao.getData());
-                        cartaoXml.setAttribute("horas",
-                                Double.toString(cartao.getHoras()));
-                        cartoesXml.appendChild(cartaoXml);
-                    }
-                }
-
-                if (emp instanceof Comissionado) {
-                    Comissionado comissionado = (Comissionado) emp;
-                    adicionarTexto(documento, empregadoXml, "comissao",
-                            Double.toString(comissionado.getComissao()));
-
-                    org.w3c.dom.Element vendasXml = documento.createElement("vendas");
-                    empregadoXml.appendChild(vendasXml);
-
-                    for (Venda venda : comissionado.getVendas()) {
-                        org.w3c.dom.Element vendaXml = documento.createElement("venda");
-                        vendaXml.setAttribute("data", venda.getData());
-                        vendaXml.setAttribute("valor",
-                                Double.toString(venda.getValor()));
-                        vendasXml.appendChild(vendaXml);
-                    }
-                }
+                emp.aceitar(new EscritorDadosEspecificos(
+                        documento, empregadoXml));
             }
 
             org.w3c.dom.Element folhasXml = documento.createElement("folhas");
@@ -168,26 +139,35 @@ public class RepositorioDadosXml {
                 org.w3c.dom.Element elemento =
                         (org.w3c.dom.Element) empregadosXml.item(i);
 
-                String tipo = elemento.getAttribute("tipo");
+                String tipoTexto = elemento.getAttribute("tipo");
                 String id = lerTexto(elemento, "id");
                 String nome = lerTexto(elemento, "nome");
                 String endereco = lerTexto(elemento, "endereco");
                 double salario = Double.parseDouble(lerTexto(elemento, "salario"));
                 String sindicalizado = lerTexto(elemento, "sindicalizado");
 
-                Empregado emp;
-                if (tipo.equals("horista")) {
-                    emp = new Horista(id, nome, endereco, tipo, salario, sindicalizado);
-                } else if (tipo.equals("assalariado")) {
-                    emp = new Assalariado(id, nome, endereco, tipo, salario, sindicalizado);
-                } else if (tipo.equals("comissionado")) {
-                    double comissao =
-                            Double.parseDouble(lerTexto(elemento, "comissao"));
-                    emp = new Comissionado(
-                            id, nome, endereco, tipo, salario, comissao, sindicalizado);
-                } else {
-                    throw new TipoDeEmpregadoPersistidoInvalidoException(tipo);
+                TipoEmpregado tipo;
+                try {
+                    tipo = TipoEmpregado.deTexto(tipoTexto);
+                } catch (IllegalArgumentException e) {
+                    throw new TipoDeEmpregadoPersistidoInvalidoException(tipoTexto);
                 }
+
+                Empregado emp = switch (tipo) {
+                    case HORISTA -> new Horista(
+                            id, nome, endereco, salario,
+                            Boolean.parseBoolean(sindicalizado));
+                    case ASSALARIADO -> new Assalariado(
+                            id, nome, endereco, salario,
+                            Boolean.parseBoolean(sindicalizado));
+                    case COMISSIONADO -> {
+                        double comissao = Double.parseDouble(
+                                lerTexto(elemento, "comissao"));
+                        yield new Comissionado(
+                                id, nome, endereco, salario, comissao,
+                                Boolean.parseBoolean(sindicalizado));
+                    }
+                };
 
                 emp.setIdSindicato(lerTexto(elemento, "idSindicato"));
                 emp.setTaxaSindical(
@@ -213,37 +193,7 @@ public class RepositorioDadosXml {
                     }
                 }
 
-                if (emp instanceof Horista) {
-                    org.w3c.dom.Element cartoesXml =
-                            primeiroFilho(elemento, "cartoes");
-                    if (cartoesXml != null) {
-                        org.w3c.dom.NodeList cartoes =
-                                cartoesXml.getElementsByTagName("cartao");
-                        for (int j = 0; j < cartoes.getLength(); j++) {
-                            org.w3c.dom.Element cartao =
-                                    (org.w3c.dom.Element) cartoes.item(j);
-                            ((Horista) emp).lancarCartao(
-                                    cartao.getAttribute("data"),
-                                    Double.parseDouble(cartao.getAttribute("horas")));
-                        }
-                    }
-                }
-
-                if (emp instanceof Comissionado) {
-                    org.w3c.dom.Element vendasXml =
-                            primeiroFilho(elemento, "vendas");
-                    if (vendasXml != null) {
-                        org.w3c.dom.NodeList vendas =
-                                vendasXml.getElementsByTagName("venda");
-                        for (int j = 0; j < vendas.getLength(); j++) {
-                            org.w3c.dom.Element venda =
-                                    (org.w3c.dom.Element) vendas.item(j);
-                            ((Comissionado) emp).adicionarVenda(
-                                    venda.getAttribute("data"),
-                                    Double.parseDouble(venda.getAttribute("valor")));
-                        }
-                    }
-                }
+                emp.aceitar(new LeitorDadosEspecificos(elemento));
 
                 empregadosCarregados.add(emp);
             }
@@ -268,6 +218,101 @@ public class RepositorioDadosXml {
             throw e;
         } catch (Exception e) {
             throw new ErroAoCarregarDadosException();
+        }
+    }
+
+    private class EscritorDadosEspecificos implements VisitanteDadosEmpregado {
+        private final org.w3c.dom.Document documento;
+        private final org.w3c.dom.Element empregadoXml;
+
+        private EscritorDadosEspecificos(
+                org.w3c.dom.Document documento,
+                org.w3c.dom.Element empregadoXml) {
+            this.documento = documento;
+            this.empregadoXml = empregadoXml;
+        }
+
+        @Override
+        public void visitar(Horista horista) {
+            org.w3c.dom.Element cartoesXml = documento.createElement("cartoes");
+            empregadoXml.appendChild(cartoesXml);
+
+            for (CartaoPonto cartao : horista.getCartoes()) {
+                org.w3c.dom.Element cartaoXml = documento.createElement("cartao");
+                cartaoXml.setAttribute("data", cartao.getData());
+                cartaoXml.setAttribute("horas", Double.toString(cartao.getHoras()));
+                cartoesXml.appendChild(cartaoXml);
+            }
+        }
+
+        @Override
+        public void visitar(Assalariado assalariado) {
+        }
+
+        @Override
+        public void visitar(Comissionado comissionado) {
+            adicionarTexto(documento, empregadoXml, "comissao",
+                    Double.toString(comissionado.getComissao()));
+
+            org.w3c.dom.Element vendasXml = documento.createElement("vendas");
+            empregadoXml.appendChild(vendasXml);
+
+            for (Venda venda : comissionado.getVendas()) {
+                org.w3c.dom.Element vendaXml = documento.createElement("venda");
+                vendaXml.setAttribute("data", venda.getData());
+                vendaXml.setAttribute("valor", Double.toString(venda.getValor()));
+                vendasXml.appendChild(vendaXml);
+            }
+        }
+    }
+
+    private class LeitorDadosEspecificos implements VisitanteDadosEmpregado {
+        private final org.w3c.dom.Element empregadoXml;
+
+        private LeitorDadosEspecificos(org.w3c.dom.Element empregadoXml) {
+            this.empregadoXml = empregadoXml;
+        }
+
+        @Override
+        public void visitar(Horista horista) {
+            org.w3c.dom.Element cartoesXml =
+                    primeiroFilho(empregadoXml, "cartoes");
+            if (cartoesXml == null) {
+                return;
+            }
+
+            org.w3c.dom.NodeList cartoes =
+                    cartoesXml.getElementsByTagName("cartao");
+            for (int i = 0; i < cartoes.getLength(); i++) {
+                org.w3c.dom.Element cartao =
+                        (org.w3c.dom.Element) cartoes.item(i);
+                horista.lancarCartao(
+                        cartao.getAttribute("data"),
+                        Double.parseDouble(cartao.getAttribute("horas")));
+            }
+        }
+
+        @Override
+        public void visitar(Assalariado assalariado) {
+        }
+
+        @Override
+        public void visitar(Comissionado comissionado) {
+            org.w3c.dom.Element vendasXml =
+                    primeiroFilho(empregadoXml, "vendas");
+            if (vendasXml == null) {
+                return;
+            }
+
+            org.w3c.dom.NodeList vendas =
+                    vendasXml.getElementsByTagName("venda");
+            for (int i = 0; i < vendas.getLength(); i++) {
+                org.w3c.dom.Element venda =
+                        (org.w3c.dom.Element) vendas.item(i);
+                comissionado.adicionarVenda(
+                        venda.getAttribute("data"),
+                        Double.parseDouble(venda.getAttribute("valor")));
+            }
         }
     }
 }
