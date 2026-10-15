@@ -94,16 +94,22 @@ public class Horista extends Empregado {
 
     @Override
     public double calcularSalarioBruto(String dataStr) {
+        return calcularSalarioBruto(
+                dataStr, getUltimaDataPagamento().plusDays(1));
+    }
+
+    @Override
+    public double calcularSalarioBruto(
+            String dataStr, LocalDate dataInicio) {
         LocalDate dataFim = parseData(dataStr);
-        LocalDate dataInicio = dataFim.minusDays(6);
 
         double horasNormais = getHorasNormaisInclusivo(dataInicio, dataFim);
         double horasExtras = getHorasExtrasInclusivo(dataInicio, dataFim);
 
         double valorHora = getSalario();
-        return (horasNormais * valorHora) + (horasExtras * valorHora * 1.5);
+        return (horasNormais * valorHora)
+                + (horasExtras * valorHora * 1.5);
     }
-
     @Override
     public Empregado clonar() {
         Horista copia = new Horista(getId(), getNome(), getEndereco(), getSalario(), false);

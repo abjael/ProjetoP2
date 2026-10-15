@@ -23,8 +23,10 @@ public class Assalariado extends Empregado {
     }
 
     @Override
-    public double calcularSalarioBruto(String dataStr) {
-        return getSalario();
+    public double calcularSalarioBruto(String dataStr)
+            throws DescricaoDeAgendaInvalidaException {
+        return AgendaPagamento.parse(getAgendaPagamento())
+                .salarioDoPeriodo(getSalario());
     }
 
     @Override

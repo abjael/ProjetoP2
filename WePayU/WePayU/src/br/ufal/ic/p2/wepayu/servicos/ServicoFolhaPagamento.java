@@ -69,7 +69,8 @@ public class ServicoFolhaPagamento {
     }
 
     private void escreverHoristas(StringBuilder conteudo, java.util.List<Horista> empregados,
-                                  String data, java.time.LocalDate dataObj, double[] totalGeral) {
+                                  String data, java.time.LocalDate dataObj, double[] totalGeral)
+            throws DescricaoDeAgendaInvalidaException {
         conteudo.append("===============================================================================================================================\n")
                 .append("===================== HORISTAS ================================================================================================\n")
                 .append("===============================================================================================================================\n")
@@ -106,7 +107,8 @@ public class ServicoFolhaPagamento {
     }
 
     private void escreverAssalariados(StringBuilder conteudo, java.util.List<Assalariado> empregados,
-                                      String data, java.time.LocalDate dataObj, double[] totalGeral) {
+                                      String data, java.time.LocalDate dataObj, double[] totalGeral)
+            throws DescricaoDeAgendaInvalidaException {
         conteudo.append("===============================================================================================================================\n")
                 .append("===================== ASSALARIADOS ============================================================================================\n")
                 .append("===============================================================================================================================\n")
@@ -137,7 +139,8 @@ public class ServicoFolhaPagamento {
     }
 
     private void escreverComissionados(StringBuilder conteudo, java.util.List<Comissionado> empregados,
-                                       String data, java.time.LocalDate dataObj, double[] totalGeral) {
+                                       String data, java.time.LocalDate dataObj, double[] totalGeral)
+            throws DescricaoDeAgendaInvalidaException {
         conteudo.append("===============================================================================================================================\n")
                 .append("===================== COMISSIONADOS ===========================================================================================\n")
                 .append("===============================================================================================================================\n")
@@ -244,9 +247,14 @@ public class ServicoFolhaPagamento {
     public String totalFolha(String data) throws ErroWePayUException {
         validarData(data);
         double totalGeral = 0.0;
+        java.time.LocalDate dataPagamento = parseData(data);
+
         for (Empregado emp : repositorioEmpregados.listarTodos()) {
             if (emp.ehDiaDePagamento(data)) {
-                totalGeral += emp.calcularSalarioBruto(data);
+                java.time.LocalDate inicioPeriodo =
+                        AgendaPagamento.parse(emp.getAgendaPagamento())
+                                .inicioPeriodo(dataPagamento);
+                totalGeral += emp.calcularSalarioBruto(data, inicioPeriodo);
             }
         }
         return formatarLinha("%.2f", totalGeral);

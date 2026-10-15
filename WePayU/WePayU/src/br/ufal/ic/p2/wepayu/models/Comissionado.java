@@ -51,24 +51,33 @@ public class Comissionado extends Empregado {
     }
 
     @Override
-    public double calcularSalarioBruto(String dataStr) {
-        LocalDate dataFim = parseData(dataStr);
-        LocalDate dataInicio = getUltimaDataPagamento().plusDays(1);
+    public double calcularSalarioBruto(String dataStr)
+            throws DescricaoDeAgendaInvalidaException {
+        return calcularSalarioBruto(
+                dataStr, getUltimaDataPagamento().plusDays(1));
+    }
 
-        double salarioQuinzenalBruto = getSalario() * 24.0 / 52.0;
-        double salarioQuinzenal = Math.floor(salarioQuinzenalBruto * 100.0) / 100.0;
+    @Override
+    public double calcularSalarioBruto(
+            String dataStr, LocalDate dataInicio)
+            throws DescricaoDeAgendaInvalidaException {
+        LocalDate dataFim = parseData(dataStr);
+
+        double salarioPeriodo = AgendaPagamento.parse(getAgendaPagamento())
+                .salarioDoPeriodo(getSalario());
 
         double totalVendasPeriodo = 0.0;
-        for (Venda v : getVendas()) {
-            LocalDate dataV = parseData(v.getData());
-            if (!dataV.isBefore(dataInicio) && !dataV.isAfter(dataFim)) {
-                totalVendasPeriodo += v.getValor();
+        for (Venda venda : getVendas()) {
+            LocalDate dataVenda = parseData(venda.getData());
+            if (!dataVenda.isBefore(dataInicio)
+                    && !dataVenda.isAfter(dataFim)) {
+                totalVendasPeriodo += venda.getValor();
             }
         }
 
-        double comissaoRecebida = Math.floor((totalVendasPeriodo * getComissao()) * 100.0) / 100.0;
-        double bruto = salarioQuinzenal + comissaoRecebida;
-        return Math.round(bruto * 100.0) / 100.0;
+        double comissaoRecebida = Math.floor(
+                totalVendasPeriodo * getComissao() * 100.0) / 100.0;
+        return salarioPeriodo + comissaoRecebida;
     }
 
     @Override

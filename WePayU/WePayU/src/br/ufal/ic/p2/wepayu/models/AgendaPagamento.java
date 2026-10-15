@@ -111,6 +111,38 @@ public final class AgendaPagamento {
         long diferencaDias = ChronoUnit.DAYS.between(base, data);
         return data.getDayOfWeek().getValue() == dia && diferencaDias % (intervaloSemanas * 7L) == 0;
     }
+    public LocalDate inicioPeriodo(LocalDate dataPagamento) {
+        LocalDate pagamentoAnterior;
+
+        if (tipo == TipoAgenda.MENSAL) {
+            LocalDate mesAnterior = dataPagamento.minusMonths(1);
+
+            if (dia == 0) {
+                pagamentoAnterior = mesAnterior.withDayOfMonth(
+                        mesAnterior.lengthOfMonth());
+
+                while (pagamentoAnterior.getDayOfWeek() == DayOfWeek.SATURDAY
+                        || pagamentoAnterior.getDayOfWeek() == DayOfWeek.SUNDAY) {
+                    pagamentoAnterior = pagamentoAnterior.minusDays(1);
+                }
+            } else {
+                pagamentoAnterior = mesAnterior.withDayOfMonth(dia);
+            }
+        } else {
+            pagamentoAnterior = dataPagamento.minusWeeks(intervaloSemanas);
+        }
+
+        return pagamentoAnterior.plusDays(1);
+    }
+
+    public double salarioDoPeriodo(double salario) {
+        if (tipo == TipoAgenda.MENSAL) {
+            return salario;
+        }
+
+        double valor = salario * 12.0 * intervaloSemanas / 52.0;
+        return Math.floor(valor * 100.0) / 100.0;
+    }
 
     private static int parseDiaSemana(String valor) throws DescricaoDeAgendaInvalidaException {
         try {

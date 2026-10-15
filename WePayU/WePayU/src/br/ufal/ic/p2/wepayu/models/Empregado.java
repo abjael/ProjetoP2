@@ -190,8 +190,15 @@ public abstract class Empregado {
     }
 
     public abstract boolean ehDiaDePagamento(String data);
-    public abstract double calcularSalarioBruto(String data);
-    public double calcularSalarioLiquido(String data) {
+    public abstract double calcularSalarioBruto(String data)
+            throws DescricaoDeAgendaInvalidaException;
+    public double calcularSalarioBruto(
+            String data, LocalDate inicioPeriodo)
+            throws DescricaoDeAgendaInvalidaException {
+        return calcularSalarioBruto(data);
+    }
+    public double calcularSalarioLiquido(String data)
+            throws DescricaoDeAgendaInvalidaException {
         LocalDate dataFim = parseData(data);
         LocalDate dataInicio = getUltimaDataPagamento().plusDays(1);
         long diasDecorridos = ChronoUnit.DAYS.between(
