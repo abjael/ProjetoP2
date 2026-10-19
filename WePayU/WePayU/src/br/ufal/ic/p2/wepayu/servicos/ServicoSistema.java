@@ -1,6 +1,6 @@
 package br.ufal.ic.p2.wepayu.servicos;
 
-import br.ufal.ic.p2.wepayu.exception.ErroWePayUException;
+import br.ufal.ic.p2.wepayu.exception.ErroAoSalvarDadosException;
 import br.ufal.ic.p2.wepayu.exception.SistemaEncerradoException;
 import br.ufal.ic.p2.wepayu.persistencia.RepositorioDadosXml;
 import br.ufal.ic.p2.wepayu.repositorio.RepositorioEmpregados;
@@ -27,10 +27,16 @@ public class ServicoSistema {
         }
     }
 
-    public void encerrar() throws ErroWePayUException {
+    public void encerrar() throws ErroAoSalvarDadosException {
+        encerrar(java.util.List.of());
+    }
+
+    public void encerrar(java.util.Collection<String> agendasDisponiveis)
+            throws ErroAoSalvarDadosException {
         repositorioDadosXml.salvarDados(
                 repositorioEmpregados.listarTodos(),
-                repositorioFolhas.listarTodas());
+                repositorioFolhas.listarTodas(),
+                agendasDisponiveis);
         encerrado = true;
     }
 

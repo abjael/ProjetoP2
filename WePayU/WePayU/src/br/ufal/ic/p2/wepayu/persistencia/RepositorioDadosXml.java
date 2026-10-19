@@ -20,7 +20,17 @@ public class RepositorioDadosXml {
         pai.appendChild(elemento);
     }
 
-    public void salvarDados(List<Empregado> empregados, Map<String, String> folhasGeradas) throws ErroWePayUException {
+    public void salvarDados(
+            List<Empregado> empregados, Map<String, String> folhasGeradas)
+            throws ErroAoSalvarDadosException {
+        salvarDados(empregados, folhasGeradas, java.util.List.of());
+    }
+
+    public void salvarDados(
+            List<Empregado> empregados,
+            Map<String, String> folhasGeradas,
+            java.util.Collection<String> agendasDisponiveis)
+            throws ErroAoSalvarDadosException {
         try {
             org.w3c.dom.Document documento =
                     javax.xml.parsers.DocumentBuilderFactory.newInstance()
@@ -80,6 +90,12 @@ public class RepositorioDadosXml {
                         documento, empregadoXml));
             }
 
+            org.w3c.dom.Element agendasXml = documento.createElement("agendas");
+            raiz.appendChild(agendasXml);
+            for (String agenda : agendasDisponiveis) {
+                adicionarTexto(documento, agendasXml, "agenda", agenda);
+            }
+
             org.w3c.dom.Element folhasXml = documento.createElement("folhas");
             raiz.appendChild(folhasXml);
 
@@ -127,7 +143,18 @@ public class RepositorioDadosXml {
 
     public void carregarDados(
             List<Empregado> empregados,
-            Map<String, String> folhasGeradas) throws ErroWePayUException {
+            Map<String, String> folhasGeradas)
+            throws ErroAoCarregarDadosException,
+            TipoDeEmpregadoPersistidoInvalidoException {
+        carregarDados(empregados, folhasGeradas, new java.util.ArrayList<>());
+    }
+
+    public void carregarDados(
+            List<Empregado> empregados,
+            Map<String, String> folhasGeradas,
+            java.util.Collection<String> agendasDisponiveis)
+            throws ErroAoCarregarDadosException,
+            TipoDeEmpregadoPersistidoInvalidoException {
         if (!java.nio.file.Files.exists(ARQUIVO_DADOS)) {
             return;
         }
@@ -230,6 +257,12 @@ public class RepositorioDadosXml {
                 emp.aceitar(new LeitorDadosEspecificos(elemento));
 
                 empregadosCarregados.add(emp);
+            }
+
+            org.w3c.dom.NodeList agendasXml =
+                    documento.getElementsByTagName("agenda");
+            for (int i = 0; i < agendasXml.getLength(); i++) {
+                agendasDisponiveis.add(agendasXml.item(i).getTextContent());
             }
 
             org.w3c.dom.NodeList folhasXml =

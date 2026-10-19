@@ -23,152 +23,270 @@ public class Facade {
     private final ServicoFolhaPagamento servicoFolhaPagamento =
             new ServicoFolhaPagamento(repositorioEmpregados, repositorioFolhas);
     private final ServicoUndoRedo servicoUndoRedo =
-            new ServicoUndoRedo(repositorioEmpregados, repositorioFolhas);
+            new ServicoUndoRedo(
+                    repositorioEmpregados, repositorioFolhas, servicoEmpregados);
     private final ServicoSistema servicoSistema = new ServicoSistema(
             repositorioDadosXml, repositorioEmpregados, repositorioFolhas);
 
-    public Facade() throws ErroWePayUException {
+    public Facade() throws ErroAoCarregarDadosException,
+            TipoDeEmpregadoPersistidoInvalidoException {
         java.util.List<Empregado> empregadosCarregados = new java.util.ArrayList<>();
         java.util.Map<String, String> folhasCarregadas = new java.util.HashMap<>();
-        repositorioDadosXml.carregarDados(empregadosCarregados, folhasCarregadas);
+        java.util.Set<String> agendasCarregadas = new java.util.LinkedHashSet<>();
+        repositorioDadosXml.carregarDados(
+                empregadosCarregados, folhasCarregadas, agendasCarregadas);
         repositorioEmpregados.substituirTodos(empregadosCarregados);
         repositorioFolhas.substituirTodas(folhasCarregadas);
-        servicoEmpregados.inicializarAgendasDisponiveis(repositorioEmpregados.listarTodos());
+        servicoEmpregados.inicializarAgendasDisponiveis(
+                repositorioEmpregados.listarTodos(), agendasCarregadas);
     }
 
 
-    public int getNumeroDeEmpregados() throws ErroWePayUException {
+    public int getNumeroDeEmpregados() throws SistemaEncerradoException {
         servicoSistema.verificarAtivo();
         return repositorioEmpregados.listarTodos().size();
     }
 
-    public void undo() throws ErroWePayUException {
+    public void undo() throws SistemaEncerradoException,
+            NaoHaComandoParaDesfazerException {
         servicoSistema.verificarAtivo();
         servicoUndoRedo.desfazer();
     }
 
-    public void redo() throws ErroWePayUException {
+    public void redo() throws SistemaEncerradoException,
+            NaoHaComandoParaRefazerException {
         servicoSistema.verificarAtivo();
         servicoUndoRedo.refazer();
     }
 
     public String criarEmpregado(
-            String nome, String endereco, String tipo, String salario) throws ErroWePayUException {
+            String nome, String endereco, String tipo, String salario)
+            throws SistemaEncerradoException, NomeNaoPodeSerNuloException,
+            EnderecoNaoPodeSerNuloException, TipoInvalidoException,
+            TipoNaoAplicavelException, SalarioNaoPodeSerNuloException,
+            SalarioDeveSerNumericoException, SalarioDeveSerNaoNegativoException {
         servicoSistema.verificarAtivo();
-        return servicoUndoRedo.executarComando(
-                () -> servicoEmpregados.criarEmpregado(
-                        nome, endereco, tipo, salario));
+        ServicoUndoRedo.Estado estadoAnterior = servicoUndoRedo.capturarEstadoAtual();
+        String id = servicoEmpregados.criarEmpregado(nome, endereco, tipo, salario);
+        servicoUndoRedo.registrar(estadoAnterior);
+        return id;
     }
 
     public String criarEmpregado(
             String nome, String endereco, String tipo, String salario,
-            String comissao) throws ErroWePayUException {
+            String comissao)
+            throws SistemaEncerradoException, NomeNaoPodeSerNuloException,
+            EnderecoNaoPodeSerNuloException, TipoInvalidoException,
+            TipoNaoAplicavelException, SalarioNaoPodeSerNuloException,
+            SalarioDeveSerNumericoException, SalarioDeveSerNaoNegativoException,
+            ComissaoNaoPodeSerNulaException, ComissaoDeveSerNumericaException,
+            ComissaoDeveSerNaoNegativaException {
         servicoSistema.verificarAtivo();
-        return servicoUndoRedo.executarComando(
-                () -> servicoEmpregados.criarEmpregado(
-                        nome, endereco, tipo, salario, comissao));
+        ServicoUndoRedo.Estado estadoAnterior = servicoUndoRedo.capturarEstadoAtual();
+        String id = servicoEmpregados.criarEmpregado(
+                nome, endereco, tipo, salario, comissao);
+        servicoUndoRedo.registrar(estadoAnterior);
+        return id;
     }
 
-    public String getAtributoEmpregado(String idBuscado, String atributo) throws ErroWePayUException {
+    public String getAtributoEmpregado(String idBuscado, String atributo)
+            throws IdentificacaoEmpregadoNaoPodeSerNulaException,
+            EmpregadoNaoExisteException, AtributoNaoExisteException,
+            EmpregadoNaoRecebeEmBancoException,
+            EmpregadoNaoEhSindicalizadoException,
+            EmpregadoNaoEhComissionadoException {
         return servicoEmpregados.getAtributoEmpregado(idBuscado, atributo);
     }
 
-    public void criarAgendaDePagamentos(String descricao) throws ErroWePayUException {
+    public void criarAgendaDePagamentos(String descricao)
+            throws SistemaEncerradoException, DescricaoDeAgendaInvalidaException,
+            AgendaDePagamentosJaExisteException {
         servicoSistema.verificarAtivo();
+        ServicoUndoRedo.Estado estadoAnterior = servicoUndoRedo.capturarEstadoAtual();
         servicoEmpregados.criarAgendaDePagamentos(descricao);
+        servicoUndoRedo.registrar(estadoAnterior);
     }
 
-    public String getEmpregadoPorNome(String nome, int indice) throws ErroWePayUException {
+    public String getEmpregadoPorNome(String nome, int indice)
+            throws NomeNaoPodeSerNuloException,
+            NaoHaEmpregadoComEsseNomeException {
         return servicoEmpregados.getEmpregadoPorNome(nome, indice);
     }
 
-    public void removerEmpregado(String idBuscado) throws ErroWePayUException {
+    public void removerEmpregado(String idBuscado)
+            throws SistemaEncerradoException,
+            IdentificacaoEmpregadoNaoPodeSerNulaException,
+            EmpregadoNaoExisteException {
         servicoSistema.verificarAtivo();
-        servicoUndoRedo.executarAcao(
-                () -> servicoEmpregados.removerEmpregado(idBuscado));
+        ServicoUndoRedo.Estado estadoAnterior = servicoUndoRedo.capturarEstadoAtual();
+        servicoEmpregados.removerEmpregado(idBuscado);
+        servicoUndoRedo.registrar(estadoAnterior);
     }
 
-    public void lancaCartao(String idEmp, String data, String horas) throws ErroWePayUException {
+    public void lancaCartao(String idEmp, String data, String horas)
+            throws SistemaEncerradoException,
+            IdentificacaoEmpregadoNaoPodeSerNulaException, EmpregadoNaoExisteException,
+            EmpregadoNaoEhHoristaException, DataNaoPodeSerNulaException,
+            DataInvalidaException, HorasNaoPodemSerNulasException,
+            HorasDevemSerNumericasException, HorasDevemSerPositivasException {
         servicoSistema.verificarAtivo();
-        servicoUndoRedo.executarAcao(
-                () -> servicoEmpregados.lancarCartao(idEmp, data, horas));
+        ServicoUndoRedo.Estado estadoAnterior = servicoUndoRedo.capturarEstadoAtual();
+        servicoEmpregados.lancarCartao(idEmp, data, horas);
+        servicoUndoRedo.registrar(estadoAnterior);
     }
 
     public String getHorasNormaisTrabalhadas(
-            String idEmp, String dataInicial, String dataFinal) throws ErroWePayUException {
+            String idEmp, String dataInicial, String dataFinal)
+            throws IdentificacaoEmpregadoNaoPodeSerNulaException,
+            EmpregadoNaoExisteException, EmpregadoNaoEhHoristaException,
+            DataInicialNaoPodeSerNulaException, DataInicialInvalidaException,
+            DataFinalNaoPodeSerNulaException, DataFinalInvalidaException,
+            DataInicialNaoPodeSerPosteriorException {
         return servicoEmpregados.getHorasTrabalhadas(
                 idEmp, dataInicial, dataFinal, false);
     }
 
     public String getHorasExtrasTrabalhadas(
-            String idEmp, String dataInicial, String dataFinal) throws ErroWePayUException {
+            String idEmp, String dataInicial, String dataFinal)
+            throws IdentificacaoEmpregadoNaoPodeSerNulaException,
+            EmpregadoNaoExisteException, EmpregadoNaoEhHoristaException,
+            DataInicialNaoPodeSerNulaException, DataInicialInvalidaException,
+            DataFinalNaoPodeSerNulaException, DataFinalInvalidaException,
+            DataInicialNaoPodeSerPosteriorException {
         return servicoEmpregados.getHorasTrabalhadas(
                 idEmp, dataInicial, dataFinal, true);
     }
 
-    public void lancaVenda(String idBuscado, String data, String valor) throws ErroWePayUException {
+    public void lancaVenda(String idBuscado, String data, String valor)
+            throws SistemaEncerradoException,
+            IdentificacaoEmpregadoNaoPodeSerNulaException, EmpregadoNaoExisteException,
+            EmpregadoNaoEhComissionadoException, DataNaoPodeSerNulaException,
+            DataInvalidaException, ValorNaoPodeSerNuloException,
+            ValorDeveSerNumericoException, ValorDeveSerPositivoException {
         servicoSistema.verificarAtivo();
-        servicoUndoRedo.executarAcao(
-                () -> servicoEmpregados.lancarVenda(idBuscado, data, valor));
+        ServicoUndoRedo.Estado estadoAnterior = servicoUndoRedo.capturarEstadoAtual();
+        servicoEmpregados.lancarVenda(idBuscado, data, valor);
+        servicoUndoRedo.registrar(estadoAnterior);
     }
 
     public String getVendasRealizadas(
-            String idEmpregado, String dataInicial, String dataFinal) throws ErroWePayUException {
+            String idEmpregado, String dataInicial, String dataFinal)
+            throws IdentificacaoEmpregadoNaoPodeSerNulaException,
+            EmpregadoNaoExisteException, EmpregadoNaoEhComissionadoException,
+            DataInicialNaoPodeSerNulaException, DataInicialInvalidaException,
+            DataFinalNaoPodeSerNulaException, DataFinalInvalidaException,
+            DataInicialNaoPodeSerPosteriorException {
         return servicoEmpregados.getVendasRealizadas(
                 idEmpregado, dataInicial, dataFinal);
     }
 
-    public void alteraEmpregado(String idEmpregado, String atributo, String valor) throws ErroWePayUException {
+    public void alteraEmpregado(String idEmpregado, String atributo, String valor)
+            throws SistemaEncerradoException,
+            IdentificacaoEmpregadoNaoPodeSerNulaException, EmpregadoNaoExisteException,
+            AtributoNaoExisteException, NomeNaoPodeSerNuloException,
+            EnderecoNaoPodeSerNuloException, TipoInvalidoException,
+            SalarioNaoPodeSerNuloException, SalarioDeveSerNumericoException,
+            SalarioDeveSerNaoNegativoException, EmpregadoNaoEhComissionadoException,
+            ComissaoNaoPodeSerNulaException, ComissaoDeveSerNumericaException,
+            ComissaoDeveSerNaoNegativaException, MetodoDePagamentoInvalidoException,
+            AgendaDePagamentoNaoDisponivelException,
+            ValorDeveSerTrueOuFalseException,
+            IdentificacaoDoSindicatoNaoPodeSerNulaException {
         servicoSistema.verificarAtivo();
-        servicoUndoRedo.executarAcao(
-                () -> servicoEmpregados.alterarAtributo(
-                        idEmpregado, atributo, valor));
+        ServicoUndoRedo.Estado estadoAnterior = servicoUndoRedo.capturarEstadoAtual();
+        servicoEmpregados.alterarAtributo(idEmpregado, atributo, valor);
+        servicoUndoRedo.registrar(estadoAnterior);
     }
 
-    public void alteraEmpregado(String idEmpregado, String atributo, String valor, String valorExtra) throws ErroWePayUException {
+    public void alteraEmpregado(
+            String idEmpregado, String atributo, String valor, String valorExtra)
+            throws SistemaEncerradoException,
+            IdentificacaoEmpregadoNaoPodeSerNulaException, EmpregadoNaoExisteException,
+            TipoInvalidoException, SalarioNaoPodeSerNuloException,
+            SalarioDeveSerNumericoException, SalarioDeveSerNaoNegativoException,
+            ComissaoNaoPodeSerNulaException, ComissaoDeveSerNumericaException,
+            ComissaoDeveSerNaoNegativaException {
         servicoSistema.verificarAtivo();
-        servicoUndoRedo.executarAcao(
-                () -> servicoEmpregados.alterarTipo(
-                        idEmpregado, atributo, valor, valorExtra));
+        ServicoUndoRedo.Estado estadoAnterior = servicoUndoRedo.capturarEstadoAtual();
+        servicoEmpregados.alterarTipo(idEmpregado, atributo, valor, valorExtra);
+        servicoUndoRedo.registrar(estadoAnterior);
     }
 
-    public void alteraEmpregado(String idEmpregado, String atributo, String valor, String idSindicato, String taxaSindical) throws ErroWePayUException {
+    public void alteraEmpregado(
+            String idEmpregado, String atributo, String valor,
+            String idSindicato, String taxaSindical)
+            throws SistemaEncerradoException,
+            IdentificacaoEmpregadoNaoPodeSerNulaException, EmpregadoNaoExisteException,
+            ValorDeveSerTrueOuFalseException,
+            IdentificacaoDoSindicatoNaoPodeSerNulaException,
+            TaxaSindicalNaoPodeSerNulaException,
+            TaxaSindicalDeveSerNumericaException,
+            TaxaSindicalDeveSerNaoNegativaException,
+            HaOutroEmpregadoComEstaIdentificacaoDeSindicatoException {
         servicoSistema.verificarAtivo();
-        servicoUndoRedo.executarAcao(
-                () -> servicoEmpregados.alterarSindicalizacao(
-                        idEmpregado, valor, idSindicato, taxaSindical));
+        ServicoUndoRedo.Estado estadoAnterior = servicoUndoRedo.capturarEstadoAtual();
+        servicoEmpregados.alterarSindicalizacao(
+                idEmpregado, valor, idSindicato, taxaSindical);
+        servicoUndoRedo.registrar(estadoAnterior);
     }
 
-    public void alteraEmpregado(String idEmpregado, String atributo, String valor1, String banco, String agencia, String contaCorrente) throws ErroWePayUException {
+    public void alteraEmpregado(
+            String idEmpregado, String atributo, String valor1,
+            String banco, String agencia, String contaCorrente)
+            throws SistemaEncerradoException,
+            IdentificacaoEmpregadoNaoPodeSerNulaException, EmpregadoNaoExisteException,
+            BancoNaoPodeSerNuloException, AgenciaNaoPodeSerNuloException,
+            ContaCorrenteNaoPodeSerNuloException {
         servicoSistema.verificarAtivo();
-        servicoUndoRedo.executarAcao(
-                () -> servicoEmpregados.alterarPagamentoBanco(
-                        idEmpregado, atributo, valor1, banco, agencia, contaCorrente));
+        ServicoUndoRedo.Estado estadoAnterior = servicoUndoRedo.capturarEstadoAtual();
+        servicoEmpregados.alterarPagamentoBanco(
+                idEmpregado, atributo, valor1, banco, agencia, contaCorrente);
+        servicoUndoRedo.registrar(estadoAnterior);
     }
 
-    public String getTaxasServico(String idEmpregado, String dataInicial, String dataFinal) throws ErroWePayUException {
+    public String getTaxasServico(
+            String idEmpregado, String dataInicial, String dataFinal)
+            throws IdentificacaoEmpregadoNaoPodeSerNulaException,
+            EmpregadoNaoExisteException, EmpregadoNaoEhSindicalizadoException,
+            DataInicialNaoPodeSerNulaException, DataInicialInvalidaException,
+            DataFinalNaoPodeSerNulaException, DataFinalInvalidaException,
+            DataInicialNaoPodeSerPosteriorException {
         return servicoEmpregados.getTaxasServico(
                 idEmpregado, dataInicial, dataFinal);
     }
 
-    public void lancaTaxaServico(String idSindicato, String data, String valor) throws ErroWePayUException {
+    public void lancaTaxaServico(String idSindicato, String data, String valor)
+            throws SistemaEncerradoException,
+            IdentificacaoDoMembroNaoPodeSerNulaException, MembroNaoExisteException,
+            DataNaoPodeSerNulaException, DataInvalidaException,
+            ValorNaoPodeSerNuloException, ValorDeveSerNumericoException,
+            ValorDeveSerPositivoException {
         servicoSistema.verificarAtivo();
-        servicoUndoRedo.executarAcao(
-                () -> servicoEmpregados.lancarTaxaServico(
-                        idSindicato, data, valor));
+        ServicoUndoRedo.Estado estadoAnterior = servicoUndoRedo.capturarEstadoAtual();
+        servicoEmpregados.lancarTaxaServico(idSindicato, data, valor);
+        servicoUndoRedo.registrar(estadoAnterior);
     }
 
-    public void rodaFolha(String data, String saida) throws ErroWePayUException {
+    public void rodaFolha(String data, String saida)
+            throws SistemaEncerradoException, DataNaoPodeSerNulaException,
+            DataInvalidaException, ArquivoDeSaidaNaoPodeSerNuloException,
+            DescricaoDeAgendaInvalidaException,
+            ErroAoGerarArquivoDeFolhaException {
         servicoSistema.verificarAtivo();
-        servicoUndoRedo.executarComandoSeNecessario(
-                () -> servicoFolhaPagamento.rodaFolha(data, saida));
+        ServicoUndoRedo.Estado estadoAnterior = servicoUndoRedo.capturarEstadoAtual();
+        if (servicoFolhaPagamento.rodaFolha(data, saida)) {
+            servicoUndoRedo.registrar(estadoAnterior);
+        }
     }
 
-    public String totalFolha(String data) throws ErroWePayUException {
+    public String totalFolha(String data)
+            throws DataNaoPodeSerNulaException, DataInvalidaException,
+            DescricaoDeAgendaInvalidaException {
         return servicoFolhaPagamento.totalFolha(data);
     }
-    public void encerrarSistema() throws ErroWePayUException {
-        servicoSistema.encerrar();
+
+    public void encerrarSistema() throws ErroAoSalvarDadosException {
+        servicoSistema.encerrar(servicoEmpregados.listarAgendasDisponiveis());
     }
 
     public void zerarSistema() {

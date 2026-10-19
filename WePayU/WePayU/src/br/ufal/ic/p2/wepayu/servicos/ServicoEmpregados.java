@@ -4,6 +4,7 @@ import br.ufal.ic.p2.wepayu.exception.*;
 import br.ufal.ic.p2.wepayu.models.*;
 import br.ufal.ic.p2.wepayu.repositorio.RepositorioEmpregados;
 import br.ufal.ic.p2.wepayu.util.ValidadorData;
+
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -17,7 +18,11 @@ public class ServicoEmpregados {
     }
 
     public String criarEmpregado(
-            String nome, String endereco, String tipo, String salario) throws ErroWePayUException {
+            String nome, String endereco, String tipo, String salario)
+            throws NomeNaoPodeSerNuloException, EnderecoNaoPodeSerNuloException,
+            TipoInvalidoException, TipoNaoAplicavelException,
+            SalarioNaoPodeSerNuloException, SalarioDeveSerNumericoException,
+            SalarioDeveSerNaoNegativoException {
 
         validarDadosBasicosEmpregado(nome, endereco);
         TipoEmpregado tipoConvertido = converterTipo(tipo);
@@ -39,7 +44,9 @@ public class ServicoEmpregados {
         return idGerado;
     }
 
-    public Empregado buscarEmpregado(String id) throws ErroWePayUException {
+    public Empregado buscarEmpregado(String id)
+            throws IdentificacaoEmpregadoNaoPodeSerNulaException,
+            EmpregadoNaoExisteException {
         if (id == null || id.isEmpty()) {
             throw new IdentificacaoEmpregadoNaoPodeSerNulaException();
         }
@@ -51,7 +58,8 @@ public class ServicoEmpregados {
     }
 
     public String getEmpregadoPorNome(String nome, int indice)
-            throws ErroWePayUException {
+            throws NomeNaoPodeSerNuloException,
+            NaoHaEmpregadoComEsseNomeException {
         if (nome == null || nome.isEmpty()) {
             throw new NomeNaoPodeSerNuloException();
         }
@@ -70,13 +78,33 @@ public class ServicoEmpregados {
     }
 
     public void inicializarAgendasDisponiveis(java.util.List<Empregado> empregados) {
+        inicializarAgendasDisponiveis(empregados, java.util.List.of());
+    }
+
+    public void inicializarAgendasDisponiveis(
+            java.util.List<Empregado> empregados,
+            java.util.Collection<String> agendasPersistidas) {
         reiniciarAgendasDisponiveis();
+        for (String agenda : agendasPersistidas) {
+            if (agenda != null && !agenda.isEmpty()) {
+                agendasDisponiveis.add(AgendaPagamento.normalizar(agenda));
+            }
+        }
         for (Empregado empregado : empregados) {
             if (empregado != null && empregado.getAgendaPagamento() != null
                     && !empregado.getAgendaPagamento().isEmpty()) {
                 agendasDisponiveis.add(AgendaPagamento.normalizar(empregado.getAgendaPagamento()));
             }
         }
+    }
+
+    public java.util.Set<String> listarAgendasDisponiveis() {
+        return java.util.Set.copyOf(agendasDisponiveis);
+    }
+
+    public void substituirAgendasDisponiveis(java.util.Collection<String> agendas) {
+        agendasDisponiveis.clear();
+        agendasDisponiveis.addAll(agendas);
     }
 
     public boolean agendaDisponivel(String descricao) {
@@ -86,7 +114,9 @@ public class ServicoEmpregados {
         return agendasDisponiveis.contains(AgendaPagamento.normalizar(descricao));
     }
 
-    public void criarAgendaDePagamentos(String descricao) throws ErroWePayUException {
+    public void criarAgendaDePagamentos(String descricao)
+            throws DescricaoDeAgendaInvalidaException,
+            AgendaDePagamentosJaExisteException {
         String agenda = AgendaPagamento.normalizar(descricao);
         if (agenda.isEmpty()) {
             throw new DescricaoDeAgendaInvalidaException();
@@ -99,16 +129,20 @@ public class ServicoEmpregados {
     }
 
     public String getAtributoEmpregado(String id, String atributo)
-            throws ErroWePayUException {
+            throws IdentificacaoEmpregadoNaoPodeSerNulaException,
+            EmpregadoNaoExisteException, AtributoNaoExisteException,
+            EmpregadoNaoRecebeEmBancoException,
+            EmpregadoNaoEhSindicalizadoException,
+            EmpregadoNaoEhComissionadoException {
         Empregado empregado = buscarEmpregado(id);
         if (atributo == null) {
             throw new AtributoNaoExisteException();
         }
         boolean existe = switch (atributo) {
             case "nome", "endereco", "tipo", "salario", "sindicalizado",
-                    "comissao", "horasTrabalhadas", "metodoPagamento",
-                    "agendaPagamento", "banco", "agencia", "contaCorrente",
-                    "idSindicato", "taxaSindical" -> true;
+                 "comissao", "horasTrabalhadas", "metodoPagamento",
+                 "agendaPagamento", "banco", "agencia", "contaCorrente",
+                 "idSindicato", "taxaSindical" -> true;
             default -> false;
         };
         if (!existe) {
@@ -146,7 +180,12 @@ public class ServicoEmpregados {
     }
 
     public String getHorasTrabalhadas(String id, String dataInicial,
-            String dataFinal, boolean extras) throws ErroWePayUException {
+                                      String dataFinal, boolean extras)
+            throws IdentificacaoEmpregadoNaoPodeSerNulaException,
+            EmpregadoNaoExisteException, EmpregadoNaoEhHoristaException,
+            DataInicialNaoPodeSerNulaException, DataInicialInvalidaException,
+            DataFinalNaoPodeSerNulaException, DataFinalInvalidaException,
+            DataInicialNaoPodeSerPosteriorException {
         Empregado empregado = buscarEmpregado(id);
         empregado.validarConsultaHoras();
         java.time.LocalDate inicio = ValidadorData.validarInicial(dataInicial);
@@ -164,7 +203,12 @@ public class ServicoEmpregados {
     }
 
     public String getVendasRealizadas(String id, String dataInicial,
-            String dataFinal) throws ErroWePayUException {
+                                      String dataFinal)
+            throws IdentificacaoEmpregadoNaoPodeSerNulaException,
+            EmpregadoNaoExisteException, EmpregadoNaoEhComissionadoException,
+            DataInicialNaoPodeSerNulaException, DataInicialInvalidaException,
+            DataFinalNaoPodeSerNulaException, DataFinalInvalidaException,
+            DataInicialNaoPodeSerPosteriorException {
         Empregado empregado = buscarEmpregado(id);
         empregado.validarConsultaVendas();
         java.time.LocalDate inicio = ValidadorData.validarInicial(dataInicial);
@@ -176,7 +220,12 @@ public class ServicoEmpregados {
     }
 
     public String getTaxasServico(String id, String dataInicial,
-            String dataFinal) throws ErroWePayUException {
+                                  String dataFinal)
+            throws IdentificacaoEmpregadoNaoPodeSerNulaException,
+            EmpregadoNaoExisteException, EmpregadoNaoEhSindicalizadoException,
+            DataInicialNaoPodeSerNulaException, DataInicialInvalidaException,
+            DataFinalNaoPodeSerNulaException, DataFinalInvalidaException,
+            DataInicialNaoPodeSerPosteriorException {
         Empregado empregado = buscarEmpregado(id);
         if (!empregado.isSindicalizado()) {
             throw new EmpregadoNaoEhSindicalizadoException();
@@ -197,7 +246,18 @@ public class ServicoEmpregados {
     }
 
     public void alterarAtributo(String id, String atributo, String valor)
-            throws ErroWePayUException {
+            throws IdentificacaoEmpregadoNaoPodeSerNulaException,
+            EmpregadoNaoExisteException, AtributoNaoExisteException,
+            NomeNaoPodeSerNuloException, EnderecoNaoPodeSerNuloException,
+            TipoInvalidoException, SalarioNaoPodeSerNuloException,
+            SalarioDeveSerNumericoException, SalarioDeveSerNaoNegativoException,
+            EmpregadoNaoEhComissionadoException, ComissaoNaoPodeSerNulaException,
+            ComissaoDeveSerNumericaException,
+            ComissaoDeveSerNaoNegativaException,
+            MetodoDePagamentoInvalidoException,
+            AgendaDePagamentoNaoDisponivelException,
+            ValorDeveSerTrueOuFalseException,
+            IdentificacaoDoSindicatoNaoPodeSerNulaException {
         Empregado empregado = buscarEmpregado(id);
         if (atributo == null) {
             throw new AtributoNaoExisteException();
@@ -255,14 +315,27 @@ public class ServicoEmpregados {
     }
 
     public void alterarTipo(String id, String atributo, String tipo,
-            String valorExtra) throws ErroWePayUException {
+                            String valorExtra)
+            throws IdentificacaoEmpregadoNaoPodeSerNulaException,
+            EmpregadoNaoExisteException, TipoInvalidoException,
+            SalarioNaoPodeSerNuloException, SalarioDeveSerNumericoException,
+            SalarioDeveSerNaoNegativoException, ComissaoNaoPodeSerNulaException,
+            ComissaoDeveSerNumericaException,
+            ComissaoDeveSerNaoNegativaException {
         if ("tipo".equals(atributo)) {
             alterarTipo(buscarEmpregado(id), tipo, valorExtra);
         }
     }
 
     public void alterarSindicalizacao(String id, String valor,
-            String idSindicato, String taxaSindical) throws ErroWePayUException {
+                                      String idSindicato, String taxaSindical)
+            throws IdentificacaoEmpregadoNaoPodeSerNulaException,
+            EmpregadoNaoExisteException, ValorDeveSerTrueOuFalseException,
+            IdentificacaoDoSindicatoNaoPodeSerNulaException,
+            TaxaSindicalNaoPodeSerNulaException,
+            TaxaSindicalDeveSerNumericaException,
+            TaxaSindicalDeveSerNaoNegativaException,
+            HaOutroEmpregadoComEstaIdentificacaoDeSindicatoException {
         Empregado empregado = buscarEmpregado(id);
         boolean sindicalizado = converterBooleano(valor);
         if (!sindicalizado) {
@@ -292,8 +365,10 @@ public class ServicoEmpregados {
     }
 
     public void alterarPagamentoBanco(String id, String atributo,
-            String metodo, String banco, String agencia, String contaCorrente)
-            throws ErroWePayUException {
+                                      String metodo, String banco, String agencia, String contaCorrente)
+            throws IdentificacaoEmpregadoNaoPodeSerNulaException,
+            EmpregadoNaoExisteException, BancoNaoPodeSerNuloException,
+            AgenciaNaoPodeSerNuloException, ContaCorrenteNaoPodeSerNuloException {
         Empregado empregado = buscarEmpregado(id);
         if ("metodoPagamento".equals(atributo) && "banco".equals(metodo)) {
             if (banco == null || banco.isEmpty()) {
@@ -321,7 +396,13 @@ public class ServicoEmpregados {
 
     public String criarEmpregado(
             String nome, String endereco, String tipo, String salario,
-            String comissao) throws ErroWePayUException {
+            String comissao)
+            throws NomeNaoPodeSerNuloException, EnderecoNaoPodeSerNuloException,
+            TipoInvalidoException, TipoNaoAplicavelException,
+            SalarioNaoPodeSerNuloException, SalarioDeveSerNumericoException,
+            SalarioDeveSerNaoNegativoException, ComissaoNaoPodeSerNulaException,
+            ComissaoDeveSerNumericaException,
+            ComissaoDeveSerNaoNegativaException {
 
         validarDadosBasicosEmpregado(nome, endereco);
         TipoEmpregado tipoConvertido = converterTipo(tipo);
@@ -344,20 +425,28 @@ public class ServicoEmpregados {
         return idGerado;
     }
 
-    public void alterarTipo(Empregado empregado, String tipo) throws ErroWePayUException {
+    public void alterarTipo(Empregado empregado, String tipo)
+            throws TipoInvalidoException {
         TipoEmpregado tipoConvertido = converterTipo(tipo);
         Empregado novo = criarComTipo(
                 empregado, tipoConvertido, empregado.getSalario(), 0.0);
         substituir(empregado, novo);
     }
 
-    public void removerEmpregado(String idBuscado) throws ErroWePayUException {
+    public void removerEmpregado(String idBuscado)
+            throws IdentificacaoEmpregadoNaoPodeSerNulaException,
+            EmpregadoNaoExisteException {
         Empregado empregado = buscarEmpregado(idBuscado);
         repositorioEmpregados.remover(
                 repositorioEmpregados.indicePorId(empregado.getId()));
     }
 
-    public void lancarCartao(String idEmp, String data, String horas) throws ErroWePayUException {
+    public void lancarCartao(String idEmp, String data, String horas)
+            throws IdentificacaoEmpregadoNaoPodeSerNulaException,
+            EmpregadoNaoExisteException, EmpregadoNaoEhHoristaException,
+            DataNaoPodeSerNulaException, DataInvalidaException,
+            HorasNaoPodemSerNulasException, HorasDevemSerNumericasException,
+            HorasDevemSerPositivasException {
         Empregado empregado = buscarEmpregado(idEmp);
         empregado.validarLancamentoCartao();
         validarData(data);
@@ -380,7 +469,12 @@ public class ServicoEmpregados {
         empregado.lancarCartao(data, horasNumericas);
     }
 
-    public void lancarVenda(String idEmp, String data, String valor) throws ErroWePayUException {
+    public void lancarVenda(String idEmp, String data, String valor)
+            throws IdentificacaoEmpregadoNaoPodeSerNulaException,
+            EmpregadoNaoExisteException, EmpregadoNaoEhComissionadoException,
+            DataNaoPodeSerNulaException, DataInvalidaException,
+            ValorNaoPodeSerNuloException, ValorDeveSerNumericoException,
+            ValorDeveSerPositivoException {
         Empregado empregado = buscarEmpregado(idEmp);
         empregado.validarLancamentoVenda();
         validarData(data);
@@ -404,7 +498,11 @@ public class ServicoEmpregados {
     }
 
     public void lancarTaxaServico(
-            String idSindicato, String data, String valor) throws ErroWePayUException {
+            String idSindicato, String data, String valor)
+            throws IdentificacaoDoMembroNaoPodeSerNulaException,
+            MembroNaoExisteException, DataNaoPodeSerNulaException,
+            DataInvalidaException, ValorNaoPodeSerNuloException,
+            ValorDeveSerNumericoException, ValorDeveSerPositivoException {
         if (idSindicato == null || idSindicato.isEmpty()) {
             throw new IdentificacaoDoMembroNaoPodeSerNulaException();
         }
@@ -435,7 +533,11 @@ public class ServicoEmpregados {
     }
 
     public void alterarTipo(
-            Empregado empregado, String tipo, String valorExtra) throws ErroWePayUException {
+            Empregado empregado, String tipo, String valorExtra)
+            throws TipoInvalidoException, SalarioNaoPodeSerNuloException,
+            SalarioDeveSerNumericoException, SalarioDeveSerNaoNegativoException,
+            ComissaoNaoPodeSerNulaException, ComissaoDeveSerNumericaException,
+            ComissaoDeveSerNaoNegativaException {
         TipoEmpregado tipoConvertido = converterTipo(tipo);
         ValoresAlteracao valores = switch (tipoConvertido) {
             case HORISTA, ASSALARIADO -> new ValoresAlteracao(
@@ -449,7 +551,9 @@ public class ServicoEmpregados {
         substituir(empregado, novo);
     }
 
-    private double converterSalarioAlteracao(String valor) throws ErroWePayUException {
+    private double converterSalarioAlteracao(String valor)
+            throws SalarioNaoPodeSerNuloException,
+            SalarioDeveSerNumericoException, SalarioDeveSerNaoNegativoException {
         if (valor == null || valor.isEmpty()) {
             throw new SalarioNaoPodeSerNuloException();
         }
@@ -465,7 +569,9 @@ public class ServicoEmpregados {
         return salario;
     }
 
-    private double converterComissaoAlteracao(String valor) throws ErroWePayUException {
+    private double converterComissaoAlteracao(String valor)
+            throws ComissaoNaoPodeSerNulaException,
+            ComissaoDeveSerNumericaException, ComissaoDeveSerNaoNegativaException {
         if (valor == null || valor.isEmpty()) {
             throw new ComissaoNaoPodeSerNulaException();
         }
@@ -538,7 +644,8 @@ public class ServicoEmpregados {
         }
     }
 
-    private void validarData(String data) throws ErroWePayUException {
+    private void validarData(String data)
+            throws DataNaoPodeSerNulaException, DataInvalidaException {
         ValidadorData.validar(data);
     }
 

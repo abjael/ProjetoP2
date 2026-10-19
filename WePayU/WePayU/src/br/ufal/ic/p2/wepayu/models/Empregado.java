@@ -77,12 +77,18 @@ public abstract class Empregado {
         this.taxaSindical = 0.0;
     }
     public String getIdSindicato() { return idSindicato; }
-    public void setIdSindicato(String idSindicato) {
+    public void setIdSindicato(String idSindicato) throws EmpregadoNaoEhSindicalizadoException {
+        if (!sindicalizado) {
+            throw new EmpregadoNaoEhSindicalizadoException();
+        }
         validarTexto(idSindicato);
         this.idSindicato = idSindicato;
     }
     public double getTaxaSindical() { return taxaSindical; }
-    public void setTaxaSindical(double taxaSindical) {
+    public void setTaxaSindical(double taxaSindical) throws EmpregadoNaoEhSindicalizadoException {
+        if (!sindicalizado) {
+            throw new EmpregadoNaoEhSindicalizadoException();
+        }
         validarValorNaoNegativo(taxaSindical);
         this.taxaSindical = taxaSindical;
     }

@@ -16,7 +16,11 @@ public class ServicoFolhaPagamento {
         this.repositorioEmpregados = repositorioEmpregados;
         this.repositorioFolhas = repositorioFolhas;
     }
-    public boolean rodaFolha(String data, String saida) throws ErroWePayUException {
+    public boolean rodaFolha(String data, String saida)
+            throws DataNaoPodeSerNulaException, DataInvalidaException,
+            ArquivoDeSaidaNaoPodeSerNuloException,
+            DescricaoDeAgendaInvalidaException,
+            ErroAoGerarArquivoDeFolhaException {
         validarData(data);
         if (saida == null || saida.isEmpty()) {
             throw new ArquivoDeSaidaNaoPodeSerNuloException();
@@ -244,7 +248,9 @@ public class ServicoFolhaPagamento {
         return String.format(formato, valores).replace(".", ",");
     }
 
-    public String totalFolha(String data) throws ErroWePayUException {
+    public String totalFolha(String data)
+            throws DataNaoPodeSerNulaException, DataInvalidaException,
+            DescricaoDeAgendaInvalidaException {
         validarData(data);
         double totalGeral = 0.0;
         java.time.LocalDate dataPagamento = parseData(data);
@@ -260,7 +266,8 @@ public class ServicoFolhaPagamento {
         return formatarLinha("%.2f", totalGeral);
     }
 
-    private void validarData(String data) throws ErroWePayUException {
+    private void validarData(String data)
+            throws DataNaoPodeSerNulaException, DataInvalidaException {
         ValidadorData.validar(data);
     }
 
