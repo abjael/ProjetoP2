@@ -32,6 +32,4 @@ Com os fontes compilados e estando na pasta `WePayU\WePayU`:
 java -cp "out;lib\easyaccept.jar" easyaccept.EasyAccept br.ufal.ic.p2.wepayu.Facade tests/us1.txt
 ```
 
-Os dados persistidos ficam em `wepayu-dados.xml`. Os arquivos compilados,
-configuracoes locais do IntelliJ, arquivos de projeto da IDE e saidas de folha
-geradas nao fazem parte do codigo-fonte.
+Os dados persistidos ficam em `wepayu-dados.xml`.
