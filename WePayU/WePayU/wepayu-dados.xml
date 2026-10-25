@@ -1,23 +1,10 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <wepayu>
-    <empregados>
-        <empregado tipo="comissionado">
-            <id>50ebd243-98ee-4b8c-a962-c8ec5820dd4b</id>
-            <nome>Gaiato Vendedor</nome>
-            <endereco>Rua dos Bufoes, 333 - Campina Grande</endereco>
-            <salario>2300.0</salario>
-            <sindicalizado>false</sindicalizado>
-            <idSindicato/>
-            <taxaSindical>0.0</taxaSindical>
-            <metodoPagamento>emMaos</metodoPagamento>
-            <banco/>
-            <agencia/>
-            <contaCorrente/>
-            <ultimaDataPagamento>2004-12-31</ultimaDataPagamento>
-            <taxasServico/>
-            <comissao>0.05</comissao>
-            <vendas/>
-        </empregado>
-    </empregados>
+    <empregados/>
+    <agendas>
+        <agenda>mensal $</agenda>
+        <agenda>semanal 5</agenda>
+        <agenda>semanal 2 5</agenda>
+    </agendas>
     <folhas/>
 </wepayu>

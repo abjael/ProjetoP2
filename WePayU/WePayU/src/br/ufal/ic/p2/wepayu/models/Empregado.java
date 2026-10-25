@@ -3,29 +3,35 @@ import br.ufal.ic.p2.wepayu.exception.*;
 import java.util.List;
 import java.util.ArrayList;
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
+import java.math.BigDecimal;
+import java.util.Objects;
 
 public abstract class Empregado {
     private String id;
     private String nome;
     private String endereco;
-    private double salario;
+    private BigDecimal salario;
     private boolean sindicalizado;
     private String idSindicato;
-    private double taxaSindical;
+    private BigDecimal taxaSindical;
     private MetodoPagamento metodoPagamento = MetodoPagamento.EM_MAOS;
     private String banco = "";
     private String agencia = "";
     private String contaCorrente = "";
     private LocalDate ultimaDataPagamento = LocalDate.of(2004, 12, 31);
     private LocalDate dataPagamentoAnterior;
-    private double dividaDescontos;
-    private double dividaDescontosAnterior;
+    private BigDecimal dividaDescontos = BigDecimal.ZERO;
+    private BigDecimal dividaDescontosAnterior = BigDecimal.ZERO;
     private AgendaPagamento agendaPagamento;
-    private final List<CartaoPonto> cartoes = new ArrayList<>();
-    private final List<Venda> vendas = new ArrayList<>();
+    private final HistoricoTrabalho historicoTrabalho = new HistoricoTrabalho();
 
     public Empregado(String id, String nome, String endereco, double salario, boolean sindicalizado) {
+        this(id, nome, endereco, BigDecimal.valueOf(salario), sindicalizado);
+    }
+
+    public Empregado(
+            String id, String nome, String endereco, BigDecimal salario,
+            boolean sindicalizado) {
         validarTexto(id);
         validarTexto(nome);
         validarTexto(endereco);
@@ -39,15 +45,19 @@ public abstract class Empregado {
         this.salario = salario;
         this.sindicalizado = sindicalizado;
         this.idSindicato = "";
-        this.taxaSindical = 0.0;
+        this.taxaSindical = BigDecimal.ZERO;
     }
 
     public String getId() { return id; }
     public String getNome() { return nome; }
     public String getEndereco() { return endereco; }
     public abstract TipoEmpregado getTipo();
-    public double getSalario() { return salario; }
+    public double getSalario() { return salario.doubleValue(); }
+    public BigDecimal getSalarioMonetario() { return salario; }
     public void setSalario(double salario) {
+        setSalario(BigDecimal.valueOf(salario));
+    }
+    public void setSalario(BigDecimal salario) {
         validarValorNaoNegativo(salario);
         this.salario = salario;
     }
@@ -56,15 +66,27 @@ public abstract class Empregado {
     }
     public boolean isSindicalizado() { return sindicalizado; }
     public void setSindicalizado(boolean sindicalizado) {
+        if (!sindicalizado) {
+            dessindicalizar();
+            return;
+        }
+        if (!this.sindicalizado) {
+            throw new IllegalArgumentException(
+                    "Os dados sindicais devem ser informados para sindicalizar o empregado.");
+        }
+    }
+    public void setSindicalizado(
+            boolean sindicalizado, String idSindicato, BigDecimal taxaSindical) {
         if (sindicalizado) {
-            validarTexto(idSindicato);
-            validarValorNaoNegativo(taxaSindical);
-            this.sindicalizado = true;
+            sindicalizar(idSindicato, taxaSindical);
         } else {
             dessindicalizar();
         }
     }
     public void sindicalizar(String idSindicato, double taxaSindical) {
+        sindicalizar(idSindicato, BigDecimal.valueOf(taxaSindical));
+    }
+    public void sindicalizar(String idSindicato, BigDecimal taxaSindical) {
         validarTexto(idSindicato);
         validarValorNaoNegativo(taxaSindical);
         this.idSindicato = idSindicato;
@@ -74,7 +96,7 @@ public abstract class Empregado {
     public void dessindicalizar() {
         this.sindicalizado = false;
         this.idSindicato = "";
-        this.taxaSindical = 0.0;
+        this.taxaSindical = BigDecimal.ZERO;
     }
     public String getIdSindicato() { return idSindicato; }
     public void setIdSindicato(String idSindicato) throws EmpregadoNaoEhSindicalizadoException {
@@ -84,44 +106,29 @@ public abstract class Empregado {
         validarTexto(idSindicato);
         this.idSindicato = idSindicato;
     }
-    public double getTaxaSindical() { return taxaSindical; }
+    public double getTaxaSindical() { return taxaSindical.doubleValue(); }
+    public BigDecimal getTaxaSindicalMonetario() { return taxaSindical; }
     public void setTaxaSindical(double taxaSindical) throws EmpregadoNaoEhSindicalizadoException {
+        setTaxaSindical(BigDecimal.valueOf(taxaSindical));
+    }
+    public void setTaxaSindical(BigDecimal taxaSindical) throws EmpregadoNaoEhSindicalizadoException {
         if (!sindicalizado) {
             throw new EmpregadoNaoEhSindicalizadoException();
         }
         validarValorNaoNegativo(taxaSindical);
         this.taxaSindical = taxaSindical;
     }
-    public abstract void validarComissao() throws EmpregadoNaoEhComissionadoException;
-    public abstract double getComissao() throws EmpregadoNaoEhComissionadoException;
-    public abstract void setComissao(double comissao) throws EmpregadoNaoEhComissionadoException;
-
     private final List<TaxaServico> taxasServico = new ArrayList<>();
-
     public void adicionarTaxaServico(String data, double valor) {
+        taxasServico.add(new TaxaServico(data, valor));
+    }
+    public void adicionarTaxaServico(String data, BigDecimal valor) {
         taxasServico.add(new TaxaServico(data, valor));
     }
 
     public List<TaxaServico> getTaxasServico() { return List.copyOf(taxasServico); }
-    public List<CartaoPonto> getCartoes() { return List.copyOf(cartoes); }
-    public List<Venda> getVendas() { return List.copyOf(vendas); }
+    public HistoricoTrabalho getHistoricoTrabalho() { return historicoTrabalho; }
     public String getHorasTrabalhadas() { return "0,0"; }
-
-    protected void registrarCartao(String data, double horas) {
-        cartoes.add(new CartaoPonto(data, horas));
-    }
-
-    protected void registrarVenda(String data, double valor) {
-        vendas.add(new Venda(data, valor));
-    }
-
-    public void carregarCartaoPersistido(String data, double horas) {
-        cartoes.add(new CartaoPonto(data, horas));
-    }
-
-    public void carregarVendaPersistida(String data, double valor) {
-        vendas.add(new Venda(data, valor));
-    }
 
     public String getMetodoPagamento() { return metodoPagamento.paraTexto(); }
     public MetodoPagamento getTipoMetodoPagamento() { return metodoPagamento; }
@@ -156,13 +163,21 @@ public abstract class Empregado {
     public void setDataPagamentoAnterior(LocalDate dataPagamentoAnterior) {
         this.dataPagamentoAnterior = dataPagamentoAnterior;
     }
-    public double getDividaDescontos() { return dividaDescontos; }
+    public double getDividaDescontos() { return dividaDescontos.doubleValue(); }
+    public BigDecimal getDividaDescontosMonetario() { return dividaDescontos; }
     public void setDividaDescontos(double dividaDescontos) {
+        setDividaDescontos(BigDecimal.valueOf(dividaDescontos));
+    }
+    public void setDividaDescontos(BigDecimal dividaDescontos) {
         validarValorNaoNegativo(dividaDescontos);
         this.dividaDescontos = dividaDescontos;
     }
-    public double getDividaDescontosAnterior() { return dividaDescontosAnterior; }
+    public double getDividaDescontosAnterior() { return dividaDescontosAnterior.doubleValue(); }
+    public BigDecimal getDividaDescontosAnteriorMonetario() { return dividaDescontosAnterior; }
     public void setDividaDescontosAnterior(double dividaDescontosAnterior) {
+        setDividaDescontosAnterior(BigDecimal.valueOf(dividaDescontosAnterior));
+    }
+    public void setDividaDescontosAnterior(BigDecimal dividaDescontosAnterior) {
         validarValorNaoNegativo(dividaDescontosAnterior);
         this.dividaDescontosAnterior = dividaDescontosAnterior;
     }
@@ -172,11 +187,15 @@ public abstract class Empregado {
             dividaDescontos = dividaDescontosAnterior;
         }
     }
-    public void registrarPagamento(LocalDate data, LocalDate dataAnterior,
-            double dividaAnterior) {
+    public void registrarPagamento(
+            LocalDate data, LocalDate dataAnterior, BigDecimal dividaAnterior) {
         dataPagamentoAnterior = dataAnterior;
         dividaDescontosAnterior = dividaAnterior;
         ultimaDataPagamento = data;
+    }
+    public void registrarPagamento(
+            LocalDate data, LocalDate dataAnterior, double dividaAnterior) {
+        registrarPagamento(data, dataAnterior, BigDecimal.valueOf(dividaAnterior));
     }
     public String getAgendaPagamento() {
         if (agendaPagamento == null) {
@@ -198,32 +217,28 @@ public abstract class Empregado {
     public abstract boolean ehDiaDePagamento(String data);
     public abstract double calcularSalarioBruto(String data)
             throws DescricaoDeAgendaInvalidaException;
+    public BigDecimal calcularSalarioBrutoMonetario(String data)
+            throws DescricaoDeAgendaInvalidaException {
+        return BigDecimal.valueOf(calcularSalarioBruto(data));
+    }
     public double calcularSalarioBruto(
             String data, LocalDate inicioPeriodo)
             throws DescricaoDeAgendaInvalidaException {
         return calcularSalarioBruto(data);
     }
+    public BigDecimal calcularSalarioBrutoMonetario(
+            String data, LocalDate inicioPeriodo)
+            throws DescricaoDeAgendaInvalidaException {
+        return BigDecimal.valueOf(calcularSalarioBruto(data, inicioPeriodo));
+    }
     public double calcularSalarioLiquido(String data)
             throws DescricaoDeAgendaInvalidaException {
-        LocalDate dataFim = parseData(data);
-        LocalDate dataInicio = getUltimaDataPagamento().plusDays(1);
-        long diasDecorridos = ChronoUnit.DAYS.between(
-                getUltimaDataPagamento(), dataFim);
-        double bruto = calcularSalarioBruto(data);
-        double descontoSindical = isSindicalizado()
-                ? getTaxaSindical() * diasDecorridos
-                : 0.0;
-        double totalTaxasServico = 0.0;
-        for (TaxaServico taxa : getTaxasServico()) {
-            LocalDate dataTaxa = parseData(taxa.getData());
-            if (!dataTaxa.isBefore(dataInicio) && !dataTaxa.isAfter(dataFim)) {
-                totalTaxasServico += taxa.getValor();
-            }
-        }
-        double descontos = dividaDescontos + descontoSindical + totalTaxasServico;
-        double liquido = Math.max(0.0, bruto - descontos);
-        dividaDescontos = Math.max(0.0, descontos - bruto);
-        return liquido;
+        return calcularSalarioLiquidoMonetario(data).doubleValue();
+    }
+    public BigDecimal calcularSalarioLiquidoMonetario(String data)
+            throws DescricaoDeAgendaInvalidaException {
+        return CalculadoraDescontos.calcularSalarioLiquido(
+                this, data, calcularSalarioBrutoMonetario(data));
     }
     public abstract void aceitar(VisitanteEmpregado visitante);
     public abstract void aceitar(VisitanteDadosEmpregado visitante);
@@ -243,20 +258,25 @@ public abstract class Empregado {
         destino.setContaCorrente(this.getContaCorrente());
         destino.setUltimaDataPagamento(this.getUltimaDataPagamento());
         destino.setDataPagamentoAnterior(this.getDataPagamentoAnterior());
-        destino.setDividaDescontos(this.getDividaDescontos());
-        destino.setDividaDescontosAnterior(this.getDividaDescontosAnterior());
+        destino.setDividaDescontos(this.getDividaDescontosMonetario());
+        destino.setDividaDescontosAnterior(this.getDividaDescontosAnteriorMonetario());
         destino.setAgendaPagamento(this.getAgendaPagamento());
         if (isSindicalizado()) {
-            destino.sindicalizar(this.getIdSindicato(), this.getTaxaSindical());
+            destino.setSindicalizado(
+                    true, this.getIdSindicato(), this.getTaxaSindicalMonetario());
         }
         for (TaxaServico ts : this.getTaxasServico()) {
-            destino.adicionarTaxaServico(ts.getData(), ts.getValor());
+            destino.adicionarTaxaServico(ts.getData(), ts.getValorMonetario());
         }
-        destino.cartoes.addAll(cartoes);
-        destino.vendas.addAll(vendas);
+        historicoTrabalho.copiarPara(destino.historicoTrabalho);
     }
 
     public Empregado mudarTipo(TipoEmpregado tipo, double salario, double comissao) {
+        return mudarTipo(tipo, BigDecimal.valueOf(salario), BigDecimal.valueOf(comissao));
+    }
+
+    public Empregado mudarTipo(
+            TipoEmpregado tipo, BigDecimal salario, BigDecimal comissao) {
         Empregado destino = switch (tipo) {
             case HORISTA -> new Horista(
                     getId(), getNome(), getEndereco(), salario, false);
@@ -280,42 +300,11 @@ public abstract class Empregado {
             throw new IllegalArgumentException();
         }
     }
-    public void validarLancamentoCartao() throws EmpregadoNaoEhHoristaException {
-        throw new EmpregadoNaoEhHoristaException();
-    }
 
-    public void lancarCartao(String data, double horas)
-            throws EmpregadoNaoEhHoristaException {
-        throw new EmpregadoNaoEhHoristaException();
-    }
-    public void validarLancamentoVenda() throws EmpregadoNaoEhComissionadoException {
-        throw new EmpregadoNaoEhComissionadoException();
-    }
-
-    public void adicionarVenda(String data, double valor)
-            throws EmpregadoNaoEhComissionadoException {
-        throw new EmpregadoNaoEhComissionadoException();
-    }
-    public void validarConsultaVendas() throws EmpregadoNaoEhComissionadoException {
-        throw new EmpregadoNaoEhComissionadoException();
-    }
-
-    public double calcularVendasRealizadas(
-            java.time.LocalDate inicio, java.time.LocalDate fim)
-            throws EmpregadoNaoEhComissionadoException {
-        throw new EmpregadoNaoEhComissionadoException();
-    }
-    public void validarConsultaHoras() throws EmpregadoNaoEhHoristaException {
-        throw new EmpregadoNaoEhHoristaException();
-    }
-
-    public double getHorasNormais(String dataInicial, String dataFinal)
-            throws EmpregadoNaoEhHoristaException {
-        throw new EmpregadoNaoEhHoristaException();
-    }
-
-    public double getHorasExtras(String dataInicial, String dataFinal)
-            throws EmpregadoNaoEhHoristaException {
-        throw new EmpregadoNaoEhHoristaException();
+    protected static void validarValorNaoNegativo(BigDecimal valor) {
+        Objects.requireNonNull(valor);
+        if (valor.signum() < 0) {
+            throw new IllegalArgumentException();
+        }
     }
 }

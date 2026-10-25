@@ -1,12 +1,19 @@
 package br.ufal.ic.p2.wepayu.models;
 
-import br.ufal.ic.p2.wepayu.exception.DescricaoDeAgendaInvalidaException;
-import br.ufal.ic.p2.wepayu.exception.EmpregadoNaoEhComissionadoException;
+import br.ufal.ic.p2.wepayu.exception.*;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 public class Assalariado extends Empregado {
 
     public Assalariado(String id, String nome, String endereco, double salario, boolean sindicalizado) {
+        super(id, nome, endereco, salario, sindicalizado);
+        setAgendaPagamento(AgendaPagamento.defaultAgenda(TipoEmpregado.ASSALARIADO));
+    }
+
+    public Assalariado(
+            String id, String nome, String endereco, BigDecimal salario,
+            boolean sindicalizado) {
         super(id, nome, endereco, salario, sindicalizado);
         setAgendaPagamento(AgendaPagamento.defaultAgenda(TipoEmpregado.ASSALARIADO));
     }
@@ -25,13 +32,20 @@ public class Assalariado extends Empregado {
     @Override
     public double calcularSalarioBruto(String dataStr)
             throws DescricaoDeAgendaInvalidaException {
+        return calcularSalarioBrutoMonetario(dataStr).doubleValue();
+    }
+
+    @Override
+    public BigDecimal calcularSalarioBrutoMonetario(String dataStr)
+            throws DescricaoDeAgendaInvalidaException {
         return AgendaPagamento.parse(getAgendaPagamento())
-                .salarioDoPeriodo(getSalario());
+                .salarioDoPeriodo(getSalarioMonetario());
     }
 
     @Override
     public Empregado clonar() {
-        Assalariado copia = new Assalariado(getId(), getNome(), getEndereco(), getSalario(), false);
+        Assalariado copia = new Assalariado(
+                getId(), getNome(), getEndereco(), getSalarioMonetario(), false);
         copiarCamposComunsPara(copia);
         return copia;
     }
@@ -50,18 +64,4 @@ public class Assalariado extends Empregado {
         return TipoEmpregado.ASSALARIADO;
     }
 
-    @Override
-    public void validarComissao() throws EmpregadoNaoEhComissionadoException {
-        throw new EmpregadoNaoEhComissionadoException();
-    }
-
-    @Override
-    public double getComissao() throws EmpregadoNaoEhComissionadoException {
-        throw new EmpregadoNaoEhComissionadoException();
-    }
-
-    @Override
-    public void setComissao(double comissao) throws EmpregadoNaoEhComissionadoException {
-        throw new EmpregadoNaoEhComissionadoException();
-    }
 }

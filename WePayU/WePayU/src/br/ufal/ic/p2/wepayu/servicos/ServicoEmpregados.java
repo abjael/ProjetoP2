@@ -1,20 +1,26 @@
 package br.ufal.ic.p2.wepayu.servicos;
 
 import br.ufal.ic.p2.wepayu.exception.*;
-import br.ufal.ic.p2.wepayu.models.*;
+import br.ufal.ic.p2.wepayu.models.AgendaPagamento;
+import br.ufal.ic.p2.wepayu.models.Assalariado;
+import br.ufal.ic.p2.wepayu.models.Comissionado;
+import br.ufal.ic.p2.wepayu.models.Empregado;
+import br.ufal.ic.p2.wepayu.models.Horista;
+import br.ufal.ic.p2.wepayu.models.MetodoPagamento;
+import br.ufal.ic.p2.wepayu.models.TaxaServico;
+import br.ufal.ic.p2.wepayu.models.TipoEmpregado;
 import br.ufal.ic.p2.wepayu.repositorio.RepositorioEmpregados;
 import br.ufal.ic.p2.wepayu.util.ValidadorData;
 
-import java.util.LinkedHashSet;
-import java.util.Set;
+import java.math.BigDecimal;
 
 public class ServicoEmpregados {
     private final RepositorioEmpregados repositorioEmpregados;
-    private final Set<String> agendasDisponiveis = new LinkedHashSet<>();
+    private final AgendasPagamentoDisponiveis agendasDisponiveis =
+            new AgendasPagamentoDisponiveis();
 
     public ServicoEmpregados(RepositorioEmpregados repositorioEmpregados) {
         this.repositorioEmpregados = repositorioEmpregados;
-        reiniciarAgendasDisponiveis();
     }
 
     public String criarEmpregado(
@@ -24,12 +30,12 @@ public class ServicoEmpregados {
             SalarioNaoPodeSerNuloException, SalarioDeveSerNumericoException,
             SalarioDeveSerNaoNegativoException {
 
-        validarDadosBasicosEmpregado(nome, endereco);
-        TipoEmpregado tipoConvertido = converterTipo(tipo);
+        ConversorEntradaEmpregado.validarDadosBasicos(nome, endereco);
+        TipoEmpregado tipoConvertido = ConversorEntradaEmpregado.converterTipo(tipo);
         if (tipoConvertido == TipoEmpregado.COMISSIONADO) {
             throw new TipoNaoAplicavelException();
         }
-        double salarioNumero = converterSalarioCriacao(salario);
+        BigDecimal salarioNumero = ConversorEntradaEmpregado.converterSalario(salario);
 
         String idGerado = java.util.UUID.randomUUID().toString();
         Empregado novoEmpregado = switch (tipoConvertido) {
@@ -71,10 +77,7 @@ public class ServicoEmpregados {
     }
 
     public void reiniciarAgendasDisponiveis() {
-        agendasDisponiveis.clear();
-        agendasDisponiveis.add("semanal 5");
-        agendasDisponiveis.add("mensal $");
-        agendasDisponiveis.add("semanal 2 5");
+        agendasDisponiveis.reiniciar();
     }
 
     public void inicializarAgendasDisponiveis(java.util.List<Empregado> empregados) {
@@ -84,48 +87,25 @@ public class ServicoEmpregados {
     public void inicializarAgendasDisponiveis(
             java.util.List<Empregado> empregados,
             java.util.Collection<String> agendasPersistidas) {
-        reiniciarAgendasDisponiveis();
-        for (String agenda : agendasPersistidas) {
-            if (agenda != null && !agenda.isEmpty()) {
-                agendasDisponiveis.add(AgendaPagamento.normalizar(agenda));
-            }
-        }
-        for (Empregado empregado : empregados) {
-            if (empregado != null && empregado.getAgendaPagamento() != null
-                    && !empregado.getAgendaPagamento().isEmpty()) {
-                agendasDisponiveis.add(AgendaPagamento.normalizar(empregado.getAgendaPagamento()));
-            }
-        }
+        agendasDisponiveis.inicializar(empregados, agendasPersistidas);
     }
 
     public java.util.Set<String> listarAgendasDisponiveis() {
-        return java.util.Set.copyOf(agendasDisponiveis);
+        return agendasDisponiveis.listar();
     }
 
     public void substituirAgendasDisponiveis(java.util.Collection<String> agendas) {
-        agendasDisponiveis.clear();
-        agendasDisponiveis.addAll(agendas);
+        agendasDisponiveis.substituir(agendas);
     }
 
     public boolean agendaDisponivel(String descricao) {
-        if (descricao == null) {
-            return false;
-        }
-        return agendasDisponiveis.contains(AgendaPagamento.normalizar(descricao));
+        return agendasDisponiveis.contem(descricao);
     }
 
     public void criarAgendaDePagamentos(String descricao)
             throws DescricaoDeAgendaInvalidaException,
             AgendaDePagamentosJaExisteException {
-        String agenda = AgendaPagamento.normalizar(descricao);
-        if (agenda.isEmpty()) {
-            throw new DescricaoDeAgendaInvalidaException();
-        }
-        if (agendasDisponiveis.contains(agenda)) {
-            throw new AgendaDePagamentosJaExisteException();
-        }
-        AgendaPagamento.parse(agenda);
-        agendasDisponiveis.add(agenda);
+        agendasDisponiveis.adicionar(descricao);
     }
 
     public String getAtributoEmpregado(String id, String atributo)
@@ -161,12 +141,11 @@ public class ServicoEmpregados {
             case "nome" -> empregado.getNome();
             case "endereco" -> empregado.getEndereco();
             case "tipo" -> empregado.getTipo().paraTexto();
-            case "salario" -> formatarValor(empregado.getSalario());
+            case "salario" -> ConversorEntradaEmpregado.formatarValor(
+                    empregado.getSalarioMonetario());
             case "sindicalizado" -> empregado.getSindicalizado();
-            case "comissao" -> {
-                empregado.validarComissao();
-                yield formatarValor(empregado.getComissao());
-            }
+            case "comissao" -> ConversorEntradaEmpregado.formatarValor(
+                    obterComissionado(empregado).getComissaoMonetario());
             case "horasTrabalhadas" -> empregado.getHorasTrabalhadas();
             case "metodoPagamento" -> empregado.getMetodoPagamento();
             case "agendaPagamento" -> empregado.getAgendaPagamento();
@@ -174,7 +153,8 @@ public class ServicoEmpregados {
             case "agencia" -> empregado.getAgencia();
             case "contaCorrente" -> empregado.getContaCorrente();
             case "idSindicato" -> empregado.getIdSindicato();
-            case "taxaSindical" -> formatarValor(empregado.getTaxaSindical());
+            case "taxaSindical" -> ConversorEntradaEmpregado.formatarValor(
+                    empregado.getTaxaSindicalMonetario());
             default -> throw new AtributoNaoExisteException();
         };
     }
@@ -186,8 +166,7 @@ public class ServicoEmpregados {
             DataInicialNaoPodeSerNulaException, DataInicialInvalidaException,
             DataFinalNaoPodeSerNulaException, DataFinalInvalidaException,
             DataInicialNaoPodeSerPosteriorException {
-        Empregado empregado = buscarEmpregado(id);
-        empregado.validarConsultaHoras();
+        Horista empregado = obterHorista(buscarEmpregado(id));
         java.time.LocalDate inicio = ValidadorData.validarInicial(dataInicial);
         java.time.LocalDate fim = ValidadorData.validarFinal(dataFinal);
         if (inicio.isAfter(fim)) {
@@ -209,14 +188,14 @@ public class ServicoEmpregados {
             DataInicialNaoPodeSerNulaException, DataInicialInvalidaException,
             DataFinalNaoPodeSerNulaException, DataFinalInvalidaException,
             DataInicialNaoPodeSerPosteriorException {
-        Empregado empregado = buscarEmpregado(id);
-        empregado.validarConsultaVendas();
+        Comissionado empregado = obterComissionado(buscarEmpregado(id));
         java.time.LocalDate inicio = ValidadorData.validarInicial(dataInicial);
         java.time.LocalDate fim = ValidadorData.validarFinal(dataFinal);
         if (inicio.isAfter(fim)) {
             throw new DataInicialNaoPodeSerPosteriorException();
         }
-        return formatarValor(empregado.calcularVendasRealizadas(inicio, fim));
+        return ConversorEntradaEmpregado.formatarValor(
+                empregado.calcularVendasRealizadasMonetario(inicio, fim));
     }
 
     public String getTaxasServico(String id, String dataInicial,
@@ -235,14 +214,14 @@ public class ServicoEmpregados {
         if (inicio.isAfter(fim)) {
             throw new DataInicialNaoPodeSerPosteriorException();
         }
-        double total = 0.0;
+        BigDecimal total = BigDecimal.ZERO;
         for (TaxaServico taxa : empregado.getTaxasServico()) {
             java.time.LocalDate dataTaxa = ValidadorData.parse(taxa.getData());
             if (!dataTaxa.isBefore(inicio) && dataTaxa.isBefore(fim)) {
-                total += taxa.getValor();
+                total = total.add(taxa.getValorMonetario());
             }
         }
-        return formatarValor(total);
+        return ConversorEntradaEmpregado.formatarValor(total);
     }
 
     public void alterarAtributo(String id, String atributo, String valor)
@@ -276,11 +255,10 @@ public class ServicoEmpregados {
                 empregado.setEndereco(valor);
             }
             case "tipo" -> alterarTipo(empregado, valor);
-            case "salario" -> empregado.setSalario(converterSalarioAlteracao(valor));
-            case "comissao" -> {
-                empregado.validarComissao();
-                empregado.setComissao(converterComissaoAlteracao(valor));
-            }
+            case "salario" -> empregado.setSalario(
+                    ConversorEntradaEmpregado.converterSalario(valor));
+            case "comissao" -> obterComissionado(empregado).setComissao(
+                    ConversorEntradaEmpregado.converterComissao(valor));
             case "metodoPagamento" -> {
                 try {
                     MetodoPagamento.deTexto(valor);
@@ -304,7 +282,8 @@ public class ServicoEmpregados {
                 }
             }
             case "sindicalizado" -> {
-                boolean sindicalizado = converterBooleano(valor);
+                boolean sindicalizado =
+                        ConversorEntradaEmpregado.converterBooleano(valor);
                 if (sindicalizado) {
                     throw new IdentificacaoDoSindicatoNaoPodeSerNulaException();
                 }
@@ -337,9 +316,9 @@ public class ServicoEmpregados {
             TaxaSindicalDeveSerNaoNegativaException,
             HaOutroEmpregadoComEstaIdentificacaoDeSindicatoException {
         Empregado empregado = buscarEmpregado(id);
-        boolean sindicalizado = converterBooleano(valor);
+        boolean sindicalizado = ConversorEntradaEmpregado.converterBooleano(valor);
         if (!sindicalizado) {
-            empregado.dessindicalizar();
+            empregado.setSindicalizado(false);
             return;
         }
         if (idSindicato == null || idSindicato.isEmpty()) {
@@ -348,20 +327,20 @@ public class ServicoEmpregados {
         if (taxaSindical == null || taxaSindical.isEmpty()) {
             throw new TaxaSindicalNaoPodeSerNulaException();
         }
-        double taxa;
+        BigDecimal taxa;
         try {
-            taxa = parseNumero(taxaSindical);
+            taxa = ConversorEntradaEmpregado.converterValorMonetario(taxaSindical);
         } catch (NumberFormatException e) {
             throw new TaxaSindicalDeveSerNumericaException();
         }
-        if (!Double.isFinite(taxa) || taxa < 0) {
+        if (taxa.signum() < 0) {
             throw new TaxaSindicalDeveSerNaoNegativaException();
         }
         Empregado outroMembro = repositorioEmpregados.buscarPorIdSindicato(idSindicato);
         if (outroMembro != null && !outroMembro.getId().equals(id)) {
             throw new HaOutroEmpregadoComEstaIdentificacaoDeSindicatoException();
         }
-        empregado.sindicalizar(idSindicato, taxa);
+        empregado.setSindicalizado(true, idSindicato, taxa);
     }
 
     public void alterarPagamentoBanco(String id, String atributo,
@@ -387,13 +366,6 @@ public class ServicoEmpregados {
         }
     }
 
-    private boolean converterBooleano(String valor) throws ValorDeveSerTrueOuFalseException {
-        if (!"true".equals(valor) && !"false".equals(valor)) {
-            throw new ValorDeveSerTrueOuFalseException();
-        }
-        return Boolean.parseBoolean(valor);
-    }
-
     public String criarEmpregado(
             String nome, String endereco, String tipo, String salario,
             String comissao)
@@ -404,14 +376,14 @@ public class ServicoEmpregados {
             ComissaoDeveSerNumericaException,
             ComissaoDeveSerNaoNegativaException {
 
-        validarDadosBasicosEmpregado(nome, endereco);
-        TipoEmpregado tipoConvertido = converterTipo(tipo);
+        ConversorEntradaEmpregado.validarDadosBasicos(nome, endereco);
+        TipoEmpregado tipoConvertido = ConversorEntradaEmpregado.converterTipo(tipo);
         if (tipoConvertido == TipoEmpregado.HORISTA
                 || tipoConvertido == TipoEmpregado.ASSALARIADO) {
             throw new TipoNaoAplicavelException();
         }
-        double salarioNumero = converterSalarioCriacao(salario);
-        double comissaoNumero = converterComissaoCriacao(comissao);
+        BigDecimal salarioNumero = ConversorEntradaEmpregado.converterSalario(salario);
+        BigDecimal comissaoNumero = ConversorEntradaEmpregado.converterComissao(comissao);
 
         String idGerado = java.util.UUID.randomUUID().toString();
         Empregado novoEmpregado = switch (tipoConvertido) {
@@ -427,9 +399,10 @@ public class ServicoEmpregados {
 
     public void alterarTipo(Empregado empregado, String tipo)
             throws TipoInvalidoException {
-        TipoEmpregado tipoConvertido = converterTipo(tipo);
+        TipoEmpregado tipoConvertido = ConversorEntradaEmpregado.converterTipo(tipo);
         Empregado novo = criarComTipo(
-                empregado, tipoConvertido, empregado.getSalario(), 0.0);
+                empregado, tipoConvertido, empregado.getSalarioMonetario(),
+                BigDecimal.ZERO);
         substituir(empregado, novo);
     }
 
@@ -447,8 +420,7 @@ public class ServicoEmpregados {
             DataNaoPodeSerNulaException, DataInvalidaException,
             HorasNaoPodemSerNulasException, HorasDevemSerNumericasException,
             HorasDevemSerPositivasException {
-        Empregado empregado = buscarEmpregado(idEmp);
-        empregado.validarLancamentoCartao();
+        Horista empregado = obterHorista(buscarEmpregado(idEmp));
         validarData(data);
 
         if (horas == null || horas.isEmpty()) {
@@ -457,7 +429,7 @@ public class ServicoEmpregados {
 
         double horasNumericas;
         try {
-            horasNumericas = parseNumero(horas);
+            horasNumericas = ConversorEntradaEmpregado.converterNumero(horas);
         } catch (NumberFormatException e) {
             throw new HorasDevemSerNumericasException();
         }
@@ -475,22 +447,21 @@ public class ServicoEmpregados {
             DataNaoPodeSerNulaException, DataInvalidaException,
             ValorNaoPodeSerNuloException, ValorDeveSerNumericoException,
             ValorDeveSerPositivoException {
-        Empregado empregado = buscarEmpregado(idEmp);
-        empregado.validarLancamentoVenda();
+        Comissionado empregado = obterComissionado(buscarEmpregado(idEmp));
         validarData(data);
 
         if (valor == null || valor.isEmpty()) {
             throw new ValorNaoPodeSerNuloException();
         }
 
-        double valorNumerico;
+        BigDecimal valorNumerico;
         try {
-            valorNumerico = parseNumero(valor);
+            valorNumerico = ConversorEntradaEmpregado.converterValorMonetario(valor);
         } catch (NumberFormatException e) {
             throw new ValorDeveSerNumericoException();
         }
 
-        if (!Double.isFinite(valorNumerico) || valorNumerico <= 0) {
+        if (valorNumerico.signum() <= 0) {
             throw new ValorDeveSerPositivoException();
         }
 
@@ -518,14 +489,14 @@ public class ServicoEmpregados {
             throw new ValorNaoPodeSerNuloException();
         }
 
-        double valorNumerico;
+        BigDecimal valorNumerico;
         try {
-            valorNumerico = parseNumero(valor);
+            valorNumerico = ConversorEntradaEmpregado.converterValorMonetario(valor);
         } catch (NumberFormatException e) {
             throw new ValorDeveSerNumericoException();
         }
 
-        if (!Double.isFinite(valorNumerico) || valorNumerico <= 0) {
+        if (valorNumerico.signum() <= 0) {
             throw new ValorDeveSerPositivoException();
         }
 
@@ -538,110 +509,19 @@ public class ServicoEmpregados {
             SalarioDeveSerNumericoException, SalarioDeveSerNaoNegativoException,
             ComissaoNaoPodeSerNulaException, ComissaoDeveSerNumericaException,
             ComissaoDeveSerNaoNegativaException {
-        TipoEmpregado tipoConvertido = converterTipo(tipo);
+        TipoEmpregado tipoConvertido = ConversorEntradaEmpregado.converterTipo(tipo);
         ValoresAlteracao valores = switch (tipoConvertido) {
             case HORISTA, ASSALARIADO -> new ValoresAlteracao(
-                    converterSalarioAlteracao(valorExtra), 0.0);
+                    ConversorEntradaEmpregado.converterSalario(valorExtra),
+                    BigDecimal.ZERO);
             case COMISSIONADO -> new ValoresAlteracao(
-                    empregado.getSalario(), converterComissaoAlteracao(valorExtra));
+                    empregado.getSalarioMonetario(),
+                    ConversorEntradaEmpregado.converterComissao(valorExtra));
         };
 
         Empregado novo = criarComTipo(
                 empregado, tipoConvertido, valores.salario(), valores.comissao());
         substituir(empregado, novo);
-    }
-
-    private double converterSalarioAlteracao(String valor)
-            throws SalarioNaoPodeSerNuloException,
-            SalarioDeveSerNumericoException, SalarioDeveSerNaoNegativoException {
-        if (valor == null || valor.isEmpty()) {
-            throw new SalarioNaoPodeSerNuloException();
-        }
-        double salario;
-        try {
-            salario = parseNumero(valor);
-        } catch (NumberFormatException e) {
-            throw new SalarioDeveSerNumericoException();
-        }
-        if (!Double.isFinite(salario) || salario < 0) {
-            throw new SalarioDeveSerNaoNegativoException();
-        }
-        return salario;
-    }
-
-    private double converterComissaoAlteracao(String valor)
-            throws ComissaoNaoPodeSerNulaException,
-            ComissaoDeveSerNumericaException, ComissaoDeveSerNaoNegativaException {
-        if (valor == null || valor.isEmpty()) {
-            throw new ComissaoNaoPodeSerNulaException();
-        }
-        try {
-            double comissao = parseNumero(valor);
-            if (!Double.isFinite(comissao) || comissao < 0) {
-                throw new ComissaoDeveSerNaoNegativaException();
-            }
-            return comissao;
-        } catch (NumberFormatException e) {
-            throw new ComissaoDeveSerNumericaException();
-        }
-    }
-
-    private void validarDadosBasicosEmpregado(String nome, String endereco)
-            throws NomeNaoPodeSerNuloException, EnderecoNaoPodeSerNuloException {
-        if (nome == null || nome.isEmpty()) {
-            throw new NomeNaoPodeSerNuloException();
-        }
-        if (endereco == null || endereco.isEmpty()) {
-            throw new EnderecoNaoPodeSerNuloException();
-        }
-    }
-
-    private double converterSalarioCriacao(String salario)
-            throws SalarioNaoPodeSerNuloException,
-            SalarioDeveSerNumericoException, SalarioDeveSerNaoNegativoException {
-        if (salario == null || salario.isEmpty()) {
-            throw new SalarioNaoPodeSerNuloException();
-        }
-        double valor;
-        try {
-            valor = parseNumero(salario);
-        } catch (NumberFormatException e) {
-            throw new SalarioDeveSerNumericoException();
-        }
-        if (!Double.isFinite(valor) || valor < 0) {
-            throw new SalarioDeveSerNaoNegativoException();
-        }
-        return valor;
-    }
-
-    private double converterComissaoCriacao(String comissao)
-            throws ComissaoNaoPodeSerNulaException,
-            ComissaoDeveSerNumericaException, ComissaoDeveSerNaoNegativaException {
-        if (comissao == null || comissao.isEmpty()) {
-            throw new ComissaoNaoPodeSerNulaException();
-        }
-        double valor;
-        try {
-            valor = parseNumero(comissao);
-        } catch (NumberFormatException e) {
-            throw new ComissaoDeveSerNumericaException();
-        }
-        if (!Double.isFinite(valor) || valor < 0) {
-            throw new ComissaoDeveSerNaoNegativaException();
-        }
-        return valor;
-    }
-
-    private double parseNumero(String valor) {
-        return Double.parseDouble(valor.replace(",", "."));
-    }
-
-    private TipoEmpregado converterTipo(String tipo) throws TipoInvalidoException {
-        try {
-            return TipoEmpregado.deTexto(tipo);
-        } catch (IllegalArgumentException e) {
-            throw new TipoInvalidoException();
-        }
     }
 
     private void validarData(String data)
@@ -650,8 +530,25 @@ public class ServicoEmpregados {
     }
 
     private Empregado criarComTipo(
-            Empregado atual, TipoEmpregado tipo, double salario, double comissao) {
+            Empregado atual, TipoEmpregado tipo,
+            BigDecimal salario, BigDecimal comissao) {
         return atual.mudarTipo(tipo, salario, comissao);
+    }
+
+    private Horista obterHorista(Empregado empregado)
+            throws EmpregadoNaoEhHoristaException {
+        if (empregado instanceof Horista horista) {
+            return horista;
+        }
+        throw new EmpregadoNaoEhHoristaException();
+    }
+
+    private Comissionado obterComissionado(Empregado empregado)
+            throws EmpregadoNaoEhComissionadoException {
+        if (empregado instanceof Comissionado comissionado) {
+            return comissionado;
+        }
+        throw new EmpregadoNaoEhComissionadoException();
     }
 
     private void substituir(Empregado atual, Empregado novo) {
@@ -659,10 +556,6 @@ public class ServicoEmpregados {
         repositorioEmpregados.substituir(indice, novo);
     }
 
-    private static String formatarValor(double valor) {
-        return String.format("%.2f", valor).replace(".", ",");
-    }
-
-    private record ValoresAlteracao(double salario, double comissao) {
+    private record ValoresAlteracao(BigDecimal salario, BigDecimal comissao) {
     }
 }

@@ -1,10 +1,20 @@
 package br.ufal.ic.p2.wepayu.persistencia;
 import br.ufal.ic.p2.wepayu.exception.*;
-import br.ufal.ic.p2.wepayu.models.*;
+import br.ufal.ic.p2.wepayu.models.AgendaPagamento;
+import br.ufal.ic.p2.wepayu.models.Assalariado;
+import br.ufal.ic.p2.wepayu.models.CartaoPonto;
+import br.ufal.ic.p2.wepayu.models.Comissionado;
+import br.ufal.ic.p2.wepayu.models.Empregado;
+import br.ufal.ic.p2.wepayu.models.Horista;
+import br.ufal.ic.p2.wepayu.models.TaxaServico;
+import br.ufal.ic.p2.wepayu.models.TipoEmpregado;
+import br.ufal.ic.p2.wepayu.models.Venda;
+import br.ufal.ic.p2.wepayu.models.VisitanteDadosEmpregado;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
+import java.math.BigDecimal;
 
 public class RepositorioDadosXml {
     private static final Path ARQUIVO_DADOS =
@@ -31,6 +41,7 @@ public class RepositorioDadosXml {
             Map<String, String> folhasGeradas,
             java.util.Collection<String> agendasDisponiveis)
             throws ErroAoSalvarDadosException {
+        java.nio.file.Path temporario = null;
         try {
             org.w3c.dom.Document documento =
                     javax.xml.parsers.DocumentBuilderFactory.newInstance()
@@ -52,13 +63,13 @@ public class RepositorioDadosXml {
                 adicionarTexto(documento, empregadoXml, "nome", emp.getNome());
                 adicionarTexto(documento, empregadoXml, "endereco", emp.getEndereco());
                 adicionarTexto(documento, empregadoXml, "salario",
-                        Double.toString(emp.getSalario()));
+                        emp.getSalarioMonetario().toPlainString());
                 adicionarTexto(documento, empregadoXml, "sindicalizado",
                         emp.getSindicalizado());
                 adicionarTexto(documento, empregadoXml, "idSindicato",
                         emp.getIdSindicato());
                 adicionarTexto(documento, empregadoXml, "taxaSindical",
-                        Double.toString(emp.getTaxaSindical()));
+                        emp.getTaxaSindicalMonetario().toPlainString());
                 adicionarTexto(documento, empregadoXml, "metodoPagamento",
                         emp.getMetodoPagamento());
                 adicionarTexto(documento, empregadoXml, "banco", emp.getBanco());
@@ -71,9 +82,9 @@ public class RepositorioDadosXml {
                         emp.getDataPagamentoAnterior() == null
                                 ? "" : emp.getDataPagamentoAnterior().toString());
                 adicionarTexto(documento, empregadoXml, "dividaDescontos",
-                        Double.toString(emp.getDividaDescontos()));
+                        emp.getDividaDescontosMonetario().toPlainString());
                 adicionarTexto(documento, empregadoXml, "dividaDescontosAnterior",
-                        Double.toString(emp.getDividaDescontosAnterior()));
+                        emp.getDividaDescontosAnteriorMonetario().toPlainString());
                 adicionarTexto(documento, empregadoXml, "agendaPagamento",
                         emp.getAgendaPagamento());
 
@@ -82,7 +93,8 @@ public class RepositorioDadosXml {
                 for (TaxaServico taxa : emp.getTaxasServico()) {
                     org.w3c.dom.Element taxaXml = documento.createElement("taxa");
                     taxaXml.setAttribute("data", taxa.getData());
-                    taxaXml.setAttribute("valor", Double.toString(taxa.getValor()));
+                    taxaXml.setAttribute(
+                            "valor", taxa.getValorMonetario().toPlainString());
                     taxasXml.appendChild(taxaXml);
                 }
 
@@ -111,13 +123,35 @@ public class RepositorioDadosXml {
                             .newTransformer();
             transformador.setOutputProperty(
                     javax.xml.transform.OutputKeys.INDENT, "yes");
+            java.nio.file.Path arquivo = ARQUIVO_DADOS.toAbsolutePath();
+            java.nio.file.Path diretorio = arquivo.getParent();
+            temporario = java.nio.file.Files.createTempFile(
+                    diretorio, "wepayu-dados-", ".xml.tmp");
             transformador.transform(
                     new javax.xml.transform.dom.DOMSource(documento),
-                    new javax.xml.transform.stream.StreamResult(ARQUIVO_DADOS.toFile()));
+                    new javax.xml.transform.stream.StreamResult(temporario.toFile()));
+            try {
+                java.nio.file.Files.move(
+                        temporario, arquivo,
+                        java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+                java.nio.file.Files.move(
+                        temporario, arquivo,
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
 
         } catch (javax.xml.parsers.ParserConfigurationException
                  | javax.xml.transform.TransformerException
+                 | java.io.IOException
                  | RuntimeException e) {
+            if (temporario != null) {
+                try {
+                    java.nio.file.Files.deleteIfExists(temporario);
+                } catch (java.io.IOException | SecurityException cleanupException) {
+                    e.addSuppressed(cleanupException);
+                }
+            }
             throw new ErroAoSalvarDadosException(e);
         }
     }
@@ -181,11 +215,11 @@ public class RepositorioDadosXml {
                 String id = lerTexto(elemento, "id");
                 String nome = lerTexto(elemento, "nome");
                 String endereco = lerTexto(elemento, "endereco");
-                double salario = Double.parseDouble(lerTexto(elemento, "salario"));
+                BigDecimal salario = new BigDecimal(lerTexto(elemento, "salario"));
                 boolean sindicalizado =
                         Boolean.parseBoolean(lerTexto(elemento, "sindicalizado"));
                 String idSindicato = lerTexto(elemento, "idSindicato");
-                double taxaSindical = Double.parseDouble(
+                BigDecimal taxaSindical = new BigDecimal(
                         lerTexto(elemento, "taxaSindical"));
 
                 TipoEmpregado tipo;
@@ -201,7 +235,7 @@ public class RepositorioDadosXml {
                     case ASSALARIADO -> new Assalariado(
                             id, nome, endereco, salario, false);
                     case COMISSIONADO -> {
-                        double comissao = Double.parseDouble(
+                        BigDecimal comissao = new BigDecimal(
                                 lerTexto(elemento, "comissao"));
                         yield new Comissionado(
                                 id, nome, endereco, salario, comissao, false);
@@ -209,7 +243,7 @@ public class RepositorioDadosXml {
                 };
 
                 if (sindicalizado) {
-                    emp.sindicalizar(idSindicato, taxaSindical);
+                    emp.setSindicalizado(true, idSindicato, taxaSindical);
                 }
                 emp.setMetodoPagamento(lerTexto(elemento, "metodoPagamento"));
                 emp.setBanco(lerTexto(elemento, "banco"));
@@ -226,13 +260,13 @@ public class RepositorioDadosXml {
                 }
                 String dividaDescontos = lerTexto(elemento, "dividaDescontos");
                 if (!dividaDescontos.isEmpty()) {
-                    emp.setDividaDescontos(Double.parseDouble(dividaDescontos));
+                    emp.setDividaDescontos(new BigDecimal(dividaDescontos));
                 }
                 String dividaDescontosAnterior =
                         lerTexto(elemento, "dividaDescontosAnterior");
                 if (!dividaDescontosAnterior.isEmpty()) {
                     emp.setDividaDescontosAnterior(
-                            Double.parseDouble(dividaDescontosAnterior));
+                            new BigDecimal(dividaDescontosAnterior));
                 }
                 String agendaPagamento = lerTexto(elemento, "agendaPagamento");
                 if (!agendaPagamento.isEmpty()) {
@@ -250,7 +284,7 @@ public class RepositorioDadosXml {
                                 (org.w3c.dom.Element) taxas.item(j);
                         emp.adicionarTaxaServico(
                                 taxa.getAttribute("data"),
-                                Double.parseDouble(taxa.getAttribute("valor")));
+                                new BigDecimal(taxa.getAttribute("valor")));
                     }
                 }
 
@@ -315,7 +349,7 @@ public class RepositorioDadosXml {
         @Override
         public void visitar(Comissionado comissionado) {
             adicionarTexto(documento, empregadoXml, "comissao",
-                    Double.toString(comissionado.getComissao()));
+                    comissionado.getComissaoMonetario().toPlainString());
             adicionarRegistros(comissionado);
         }
 
@@ -323,7 +357,8 @@ public class RepositorioDadosXml {
             org.w3c.dom.Element cartoesXml = documento.createElement("cartoes");
             empregadoXml.appendChild(cartoesXml);
 
-            for (CartaoPonto cartao : empregado.getCartoes()) {
+            for (CartaoPonto cartao
+                    : empregado.getHistoricoTrabalho().getCartoesPonto()) {
                 org.w3c.dom.Element cartaoXml = documento.createElement("cartao");
                 cartaoXml.setAttribute("data", cartao.getData());
                 cartaoXml.setAttribute("horas", Double.toString(cartao.getHoras()));
@@ -333,10 +368,11 @@ public class RepositorioDadosXml {
             org.w3c.dom.Element vendasXml = documento.createElement("vendas");
             empregadoXml.appendChild(vendasXml);
 
-            for (Venda venda : empregado.getVendas()) {
+            for (Venda venda : empregado.getHistoricoTrabalho().getVendas()) {
                 org.w3c.dom.Element vendaXml = documento.createElement("venda");
                 vendaXml.setAttribute("data", venda.getData());
-                vendaXml.setAttribute("valor", Double.toString(venda.getValor()));
+                vendaXml.setAttribute(
+                        "valor", venda.getValorMonetario().toPlainString());
                 vendasXml.appendChild(vendaXml);
             }
         }
@@ -373,12 +409,11 @@ public class RepositorioDadosXml {
                 for (int i = 0; i < cartoes.getLength(); i++) {
                     org.w3c.dom.Element cartao =
                             (org.w3c.dom.Element) cartoes.item(i);
-                    empregado.carregarCartaoPersistido(
+                    empregado.getHistoricoTrabalho().adicionarCartao(
                             cartao.getAttribute("data"),
                             Double.parseDouble(cartao.getAttribute("horas")));
                 }
             }
-
             org.w3c.dom.Element vendasXml =
                     primeiroFilho(empregadoXml, "vendas");
             if (vendasXml != null) {
@@ -387,9 +422,9 @@ public class RepositorioDadosXml {
                 for (int i = 0; i < vendas.getLength(); i++) {
                     org.w3c.dom.Element venda =
                             (org.w3c.dom.Element) vendas.item(i);
-                    empregado.carregarVendaPersistida(
+                    empregado.getHistoricoTrabalho().adicionarVenda(
                             venda.getAttribute("data"),
-                            Double.parseDouble(venda.getAttribute("valor")));
+                            new BigDecimal(venda.getAttribute("valor")));
                 }
             }
         }

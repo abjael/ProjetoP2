@@ -1,7 +1,17 @@
 package br.ufal.ic.p2.wepayu.servicos;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import br.ufal.ic.p2.wepayu.exception.*;
-import br.ufal.ic.p2.wepayu.models.*;
+import br.ufal.ic.p2.wepayu.models.AgendaPagamento;
+import br.ufal.ic.p2.wepayu.models.Assalariado;
+import br.ufal.ic.p2.wepayu.models.CalculadoraDescontos;
+import br.ufal.ic.p2.wepayu.models.Comissionado;
+import br.ufal.ic.p2.wepayu.models.Empregado;
+import br.ufal.ic.p2.wepayu.models.Horista;
+import br.ufal.ic.p2.wepayu.models.MetodoPagamento;
+import br.ufal.ic.p2.wepayu.models.TaxaServico;
+import br.ufal.ic.p2.wepayu.models.Venda;
 import br.ufal.ic.p2.wepayu.repositorio.RepositorioEmpregados;
 import br.ufal.ic.p2.wepayu.repositorio.RepositorioFolhas;
 import br.ufal.ic.p2.wepayu.util.ValidadorData;
@@ -45,7 +55,7 @@ public class ServicoFolhaPagamento {
         java.util.List<Comissionado> comissionados = new java.util.ArrayList<>(separador.getComissionados());
         comissionados.sort(java.util.Comparator.comparing(Comissionado::getNome));
 
-        double[] totalGeral = {0.0};
+        BigDecimal[] totalGeral = {BigDecimal.ZERO};
         escreverHoristas(conteudo, horistas, data, dataObj, totalGeral);
         escreverAssalariados(conteudo, assalariados, data, dataObj, totalGeral);
         escreverComissionados(conteudo, comissionados, data, dataObj, totalGeral);
@@ -73,31 +83,36 @@ public class ServicoFolhaPagamento {
     }
 
     private void escreverHoristas(StringBuilder conteudo, java.util.List<Horista> empregados,
-                                  String data, java.time.LocalDate dataObj, double[] totalGeral)
+                                  String data, java.time.LocalDate dataObj,
+                                  BigDecimal[] totalGeral)
             throws DescricaoDeAgendaInvalidaException {
         conteudo.append("===============================================================================================================================\n")
                 .append("===================== HORISTAS ================================================================================================\n")
                 .append("===============================================================================================================================\n")
                 .append("Nome                                 Horas Extra Salario Bruto Descontos Salario Liquido Metodo\n")
                 .append("==================================== ===== ===== ============= ========= =============== ======================================\n");
-        double horasTotal = 0.0, extrasTotal = 0.0, brutoTotal = 0.0, descontosTotal = 0.0, liquidoTotal = 0.0;
+        double horasTotal = 0.0, extrasTotal = 0.0;
+        BigDecimal brutoTotal = BigDecimal.ZERO;
+        BigDecimal descontosTotal = BigDecimal.ZERO;
+        BigDecimal liquidoTotal = BigDecimal.ZERO;
         for (Horista empregado : empregados) {
             if (!empregado.ehDiaDePagamento(data) || jaPago(empregado, dataObj)) continue;
             java.time.LocalDate inicio = empregado.getUltimaDataPagamento().plusDays(1);
             String dataInicial = String.format("%02d/%02d/%d", inicio.getDayOfMonth(), inicio.getMonthValue(), inicio.getYear());
             double horas = empregado.getHorasNormais(dataInicial, data);
             double extras = empregado.getHorasExtras(dataInicial, data);
-            double bruto = empregado.calcularSalarioBruto(data);
+            BigDecimal bruto = empregado.calcularSalarioBrutoMonetario(data);
             java.time.LocalDate dataAnterior = empregado.getUltimaDataPagamento();
-            double dividaAnterior = empregado.getDividaDescontos();
-            double liquido = empregado.calcularSalarioLiquido(data);
-            double descontos = bruto - liquido;
+            BigDecimal dividaAnterior = empregado.getDividaDescontosMonetario();
+            BigDecimal liquido = CalculadoraDescontos.calcularSalarioLiquido(
+                    empregado, data, bruto);
+            BigDecimal descontos = bruto.subtract(liquido);
             horasTotal += horas;
             extrasTotal += extras;
-            brutoTotal += bruto;
-            descontosTotal += descontos;
-            liquidoTotal += liquido;
-            totalGeral[0] += bruto;
+            brutoTotal = brutoTotal.add(bruto);
+            descontosTotal = descontosTotal.add(descontos);
+            liquidoTotal = liquidoTotal.add(liquido);
+            totalGeral[0] = totalGeral[0].add(bruto);
             conteudo.append(formatarLinha(
                     "%-36s %5.0f %5.0f %13.2f %9.2f %15.2f ",
                     empregado.getNome(), horas, extras, bruto, descontos, liquido))
@@ -111,25 +126,29 @@ public class ServicoFolhaPagamento {
     }
 
     private void escreverAssalariados(StringBuilder conteudo, java.util.List<Assalariado> empregados,
-                                      String data, java.time.LocalDate dataObj, double[] totalGeral)
+                                      String data, java.time.LocalDate dataObj,
+                                      BigDecimal[] totalGeral)
             throws DescricaoDeAgendaInvalidaException {
         conteudo.append("===============================================================================================================================\n")
                 .append("===================== ASSALARIADOS ============================================================================================\n")
                 .append("===============================================================================================================================\n")
                 .append("Nome                                             Salario Bruto Descontos Salario Liquido Metodo\n")
                 .append("================================================ ============= ========= =============== ======================================\n");
-        double brutoTotal = 0.0, descontosTotal = 0.0, liquidoTotal = 0.0;
+        BigDecimal brutoTotal = BigDecimal.ZERO;
+        BigDecimal descontosTotal = BigDecimal.ZERO;
+        BigDecimal liquidoTotal = BigDecimal.ZERO;
         for (Assalariado empregado : empregados) {
             if (!empregado.ehDiaDePagamento(data) || jaPago(empregado, dataObj)) continue;
-            double bruto = empregado.calcularSalarioBruto(data);
+            BigDecimal bruto = empregado.calcularSalarioBrutoMonetario(data);
             java.time.LocalDate dataAnterior = empregado.getUltimaDataPagamento();
-            double dividaAnterior = empregado.getDividaDescontos();
-            double liquido = empregado.calcularSalarioLiquido(data);
-            double descontos = bruto - liquido;
-            brutoTotal += bruto;
-            descontosTotal += descontos;
-            liquidoTotal += liquido;
-            totalGeral[0] += bruto;
+            BigDecimal dividaAnterior = empregado.getDividaDescontosMonetario();
+            BigDecimal liquido = CalculadoraDescontos.calcularSalarioLiquido(
+                    empregado, data, bruto);
+            BigDecimal descontos = bruto.subtract(liquido);
+            brutoTotal = brutoTotal.add(bruto);
+            descontosTotal = descontosTotal.add(descontos);
+            liquidoTotal = liquidoTotal.add(liquido);
+            totalGeral[0] = totalGeral[0].add(bruto);
             conteudo.append(formatarLinha(
                     "%-48s %13.2f %9.2f %15.2f ",
                     empregado.getNome(), bruto, descontos, liquido))
@@ -143,33 +162,42 @@ public class ServicoFolhaPagamento {
     }
 
     private void escreverComissionados(StringBuilder conteudo, java.util.List<Comissionado> empregados,
-                                       String data, java.time.LocalDate dataObj, double[] totalGeral)
+                                       String data, java.time.LocalDate dataObj,
+                                       BigDecimal[] totalGeral)
             throws DescricaoDeAgendaInvalidaException {
         conteudo.append("===============================================================================================================================\n")
                 .append("===================== COMISSIONADOS ===========================================================================================\n")
                 .append("===============================================================================================================================\n")
                 .append("Nome                  Fixo     Vendas   Comissao Salario Bruto Descontos Salario Liquido Metodo\n")
                 .append("===================== ======== ======== ======== ============= ========= =============== ======================================\n");
-        double fixoTotal = 0.0, vendasTotal = 0.0, comissaoTotal = 0.0;
-        double brutoTotal = 0.0, descontosTotal = 0.0, liquidoTotal = 0.0;
+        BigDecimal fixoTotal = BigDecimal.ZERO;
+        BigDecimal vendasTotal = BigDecimal.ZERO;
+        BigDecimal comissaoTotal = BigDecimal.ZERO;
+        BigDecimal brutoTotal = BigDecimal.ZERO;
+        BigDecimal descontosTotal = BigDecimal.ZERO;
+        BigDecimal liquidoTotal = BigDecimal.ZERO;
         for (Comissionado empregado : empregados) {
             if (!empregado.ehDiaDePagamento(data) || jaPago(empregado, dataObj)) continue;
             java.time.LocalDate inicio = empregado.getUltimaDataPagamento().plusDays(1);
-            double vendas = totalVendas(empregado, inicio, dataObj);
-            double comissao = Math.floor(vendas * empregado.getComissao() * 100) / 100.0;
-            double fixo = Math.floor(empregado.getSalario() * 12.0 / 52.0 * 2.0 * 100) / 100.0;
-            double bruto = empregado.calcularSalarioBruto(data);
+            BigDecimal vendas = totalVendas(empregado, inicio, dataObj);
+            BigDecimal comissao = vendas.multiply(empregado.getComissaoMonetario())
+                    .setScale(2, RoundingMode.DOWN);
+            BigDecimal fixo = empregado.getSalarioMonetario()
+                    .multiply(BigDecimal.valueOf(24))
+                    .divide(BigDecimal.valueOf(52), 2, RoundingMode.DOWN);
+            BigDecimal bruto = empregado.calcularSalarioBrutoMonetario(data);
             java.time.LocalDate dataAnterior = empregado.getUltimaDataPagamento();
-            double dividaAnterior = empregado.getDividaDescontos();
-            double liquido = empregado.calcularSalarioLiquido(data);
-            double descontos = bruto - liquido;
-            fixoTotal += fixo;
-            vendasTotal += vendas;
-            comissaoTotal += comissao;
-            brutoTotal += bruto;
-            descontosTotal += descontos;
-            liquidoTotal += liquido;
-            totalGeral[0] += bruto;
+            BigDecimal dividaAnterior = empregado.getDividaDescontosMonetario();
+            BigDecimal liquido = CalculadoraDescontos.calcularSalarioLiquido(
+                    empregado, data, bruto);
+            BigDecimal descontos = bruto.subtract(liquido);
+            fixoTotal = fixoTotal.add(fixo);
+            vendasTotal = vendasTotal.add(vendas);
+            comissaoTotal = comissaoTotal.add(comissao);
+            brutoTotal = brutoTotal.add(bruto);
+            descontosTotal = descontosTotal.add(descontos);
+            liquidoTotal = liquidoTotal.add(liquido);
+            totalGeral[0] = totalGeral[0].add(bruto);
             conteudo.append(formatarLinha(
                     "%-21s %8.2f %8.2f %8.2f %13.2f %9.2f %15.2f ",
                     empregado.getNome(), fixo, vendas, comissao,
@@ -188,11 +216,14 @@ public class ServicoFolhaPagamento {
         return empregado.getUltimaDataPagamento() != null && empregado.getUltimaDataPagamento().equals(data);
     }
 
-    private double totalVendas(Comissionado empregado, java.time.LocalDate inicio, java.time.LocalDate fim) {
-        double total = 0.0;
+    private BigDecimal totalVendas(
+            Comissionado empregado, java.time.LocalDate inicio, java.time.LocalDate fim) {
+        BigDecimal total = BigDecimal.ZERO;
         for (Venda venda : empregado.getVendas()) {
             java.time.LocalDate dataVenda = parseData(venda.getData());
-            if (!dataVenda.isBefore(inicio) && !dataVenda.isAfter(fim)) total += venda.getValor();
+            if (!dataVenda.isBefore(inicio) && !dataVenda.isAfter(fim)) {
+                total = total.add(venda.getValorMonetario());
+            }
         }
         return total;
     }
@@ -252,7 +283,7 @@ public class ServicoFolhaPagamento {
             throws DataNaoPodeSerNulaException, DataInvalidaException,
             DescricaoDeAgendaInvalidaException {
         validarData(data);
-        double totalGeral = 0.0;
+        BigDecimal totalGeral = BigDecimal.ZERO;
         java.time.LocalDate dataPagamento = parseData(data);
 
         for (Empregado emp : repositorioEmpregados.listarTodos()) {
@@ -260,7 +291,8 @@ public class ServicoFolhaPagamento {
                 java.time.LocalDate inicioPeriodo =
                         AgendaPagamento.parse(emp.getAgendaPagamento())
                                 .inicioPeriodo(dataPagamento);
-                totalGeral += emp.calcularSalarioBruto(data, inicioPeriodo);
+                totalGeral = totalGeral.add(
+                        emp.calcularSalarioBrutoMonetario(data, inicioPeriodo));
             }
         }
         return formatarLinha("%.2f", totalGeral);

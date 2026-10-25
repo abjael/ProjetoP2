@@ -1,7 +1,6 @@
 package br.ufal.ic.p2.wepayu.servicos;
 
-import br.ufal.ic.p2.wepayu.exception.NaoHaComandoParaDesfazerException;
-import br.ufal.ic.p2.wepayu.exception.NaoHaComandoParaRefazerException;
+import br.ufal.ic.p2.wepayu.exception.*;
 import br.ufal.ic.p2.wepayu.models.Empregado;
 import br.ufal.ic.p2.wepayu.repositorio.RepositorioEmpregados;
 import br.ufal.ic.p2.wepayu.repositorio.RepositorioFolhas;

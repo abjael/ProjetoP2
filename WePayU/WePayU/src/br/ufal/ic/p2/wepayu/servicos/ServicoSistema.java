@@ -1,7 +1,6 @@
 package br.ufal.ic.p2.wepayu.servicos;
 
-import br.ufal.ic.p2.wepayu.exception.ErroAoSalvarDadosException;
-import br.ufal.ic.p2.wepayu.exception.SistemaEncerradoException;
+import br.ufal.ic.p2.wepayu.exception.*;
 import br.ufal.ic.p2.wepayu.persistencia.RepositorioDadosXml;
 import br.ufal.ic.p2.wepayu.repositorio.RepositorioEmpregados;
 import br.ufal.ic.p2.wepayu.repositorio.RepositorioFolhas;

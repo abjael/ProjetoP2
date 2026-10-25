@@ -1,38 +1,55 @@
 package br.ufal.ic.p2.wepayu.models;
 
-import br.ufal.ic.p2.wepayu.exception.DescricaoDeAgendaInvalidaException;
+import br.ufal.ic.p2.wepayu.exception.*;
 import java.time.LocalDate;
 import java.time.DayOfWeek;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
 import java.util.List;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 public class Comissionado extends Empregado {
-    private double comissao;
+    private BigDecimal comissao;
 
     public Comissionado(String id, String nome, String endereco, double salario, double comissao, boolean sindicalizado) {
+        super(id, nome, endereco, salario, sindicalizado);
+        validarValorNaoNegativo(comissao);
+        this.comissao = BigDecimal.valueOf(comissao);
+        setAgendaPagamento(AgendaPagamento.defaultAgenda(TipoEmpregado.COMISSIONADO));
+    }
+
+    public Comissionado(
+            String id, String nome, String endereco, BigDecimal salario,
+            BigDecimal comissao, boolean sindicalizado) {
         super(id, nome, endereco, salario, sindicalizado);
         validarValorNaoNegativo(comissao);
         this.comissao = comissao;
         setAgendaPagamento(AgendaPagamento.defaultAgenda(TipoEmpregado.COMISSIONADO));
     }
 
-    @Override
-    public void validarComissao() {
-    }
+    public double getComissao() { return comissao.doubleValue(); }
+    public BigDecimal getComissaoMonetario() { return comissao; }
 
-    @Override
-    public double getComissao() { return comissao; }
-
-    @Override
     public void adicionarVenda(String data, double valor) {
-        registrarVenda(data, valor);
+        getHistoricoTrabalho().adicionarVenda(data, valor);
     }
 
-    @Override
     public void setComissao(double comissao) {
         validarValorNaoNegativo(comissao);
+        this.comissao = BigDecimal.valueOf(comissao);
+    }
+
+    public void setComissao(BigDecimal comissao) {
+        validarValorNaoNegativo(comissao);
         this.comissao = comissao;
+    }
+
+    public List<Venda> getVendas() {
+        return getHistoricoTrabalho().getVendas();
+    }
+
+    public void adicionarVenda(String data, BigDecimal valor) {
+        getHistoricoTrabalho().adicionarVenda(data, valor);
     }
 
     @Override
@@ -53,56 +70,70 @@ public class Comissionado extends Empregado {
     @Override
     public double calcularSalarioBruto(String dataStr)
             throws DescricaoDeAgendaInvalidaException {
-        return calcularSalarioBruto(
-                dataStr, getUltimaDataPagamento().plusDays(1));
+        return calcularSalarioBrutoMonetario(
+                dataStr, getUltimaDataPagamento().plusDays(1)).doubleValue();
     }
 
     @Override
     public double calcularSalarioBruto(
             String dataStr, LocalDate dataInicio)
             throws DescricaoDeAgendaInvalidaException {
+        return calcularSalarioBrutoMonetario(dataStr, dataInicio).doubleValue();
+    }
+
+    @Override
+    public BigDecimal calcularSalarioBrutoMonetario(String dataStr)
+            throws DescricaoDeAgendaInvalidaException {
+        return calcularSalarioBrutoMonetario(
+                dataStr, getUltimaDataPagamento().plusDays(1));
+    }
+
+    @Override
+    public BigDecimal calcularSalarioBrutoMonetario(
+            String dataStr, LocalDate dataInicio)
+            throws DescricaoDeAgendaInvalidaException {
         LocalDate dataFim = parseData(dataStr);
 
-        double salarioPeriodo = AgendaPagamento.parse(getAgendaPagamento())
-                .salarioDoPeriodo(getSalario());
+        BigDecimal salarioPeriodo = AgendaPagamento.parse(getAgendaPagamento())
+                .salarioDoPeriodo(getSalarioMonetario());
 
-        double totalVendasPeriodo = 0.0;
+        BigDecimal totalVendasPeriodo = BigDecimal.ZERO;
         for (Venda venda : getVendas()) {
             LocalDate dataVenda = parseData(venda.getData());
             if (!dataVenda.isBefore(dataInicio)
                     && !dataVenda.isAfter(dataFim)) {
-                totalVendasPeriodo += venda.getValor();
+                totalVendasPeriodo = totalVendasPeriodo.add(
+                        venda.getValorMonetario());
             }
         }
 
-        double comissaoRecebida = Math.floor(
-                totalVendasPeriodo * getComissao() * 100.0) / 100.0;
-        return salarioPeriodo + comissaoRecebida;
+        BigDecimal comissaoRecebida = totalVendasPeriodo
+                .multiply(getComissaoMonetario())
+                .setScale(2, RoundingMode.DOWN);
+        return salarioPeriodo.add(comissaoRecebida);
     }
 
     @Override
     public Empregado clonar() {
         Comissionado copia = new Comissionado(
-                getId(), getNome(), getEndereco(), getSalario(), getComissao(), false);
+                getId(), getNome(), getEndereco(), getSalarioMonetario(),
+                getComissaoMonetario(), false);
         copiarCamposComunsPara(copia);
         return copia;
     }
-    @Override
-    public void validarLancamentoVenda() {
-    }
-    @Override
-    public void validarConsultaVendas() {
-    }
 
-    @Override
     public double calcularVendasRealizadas(
             LocalDate inicio, LocalDate fim) {
-        double totalVendas = 0.0;
+        return calcularVendasRealizadasMonetario(inicio, fim).doubleValue();
+    }
 
+    public BigDecimal calcularVendasRealizadasMonetario(
+            LocalDate inicio, LocalDate fim) {
+        BigDecimal totalVendas = BigDecimal.ZERO;
         for (Venda venda : getVendas()) {
             LocalDate dataVenda = parseData(venda.getData());
             if (!dataVenda.isBefore(inicio) && dataVenda.isBefore(fim)) {
-                totalVendas += venda.getValor();
+                totalVendas = totalVendas.add(venda.getValorMonetario());
             }
         }
 

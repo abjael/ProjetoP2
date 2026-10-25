@@ -1,9 +1,11 @@
 package br.ufal.ic.p2.wepayu.models;
 
-import br.ufal.ic.p2.wepayu.exception.DescricaoDeAgendaInvalidaException;
+import br.ufal.ic.p2.wepayu.exception.*;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Locale;
 
 public final class AgendaPagamento {
@@ -136,12 +138,16 @@ public final class AgendaPagamento {
     }
 
     public double salarioDoPeriodo(double salario) {
+        return salarioDoPeriodo(BigDecimal.valueOf(salario)).doubleValue();
+    }
+
+    public BigDecimal salarioDoPeriodo(BigDecimal salario) {
         if (tipo == TipoAgenda.MENSAL) {
             return salario;
         }
 
-        double valor = salario * 12.0 * intervaloSemanas / 52.0;
-        return Math.floor(valor * 100.0) / 100.0;
+        return salario.multiply(BigDecimal.valueOf(12L * intervaloSemanas))
+                .divide(BigDecimal.valueOf(52), 2, RoundingMode.DOWN);
     }
 
     private static int parseDiaSemana(String valor) throws DescricaoDeAgendaInvalidaException {

@@ -1,11 +1,6 @@
 package br.ufal.ic.p2.wepayu.util;
 
-import br.ufal.ic.p2.wepayu.exception.DataFinalInvalidaException;
-import br.ufal.ic.p2.wepayu.exception.DataFinalNaoPodeSerNulaException;
-import br.ufal.ic.p2.wepayu.exception.DataInicialInvalidaException;
-import br.ufal.ic.p2.wepayu.exception.DataInicialNaoPodeSerNulaException;
-import br.ufal.ic.p2.wepayu.exception.DataInvalidaException;
-import br.ufal.ic.p2.wepayu.exception.DataNaoPodeSerNulaException;
+import br.ufal.ic.p2.wepayu.exception.*;
 import java.time.DateTimeException;
 import java.time.LocalDate;
 
